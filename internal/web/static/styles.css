@@ -480,6 +480,11 @@ button:active { background: var(--surface-soft); }
 .thread-shell.comments-collapsed {
   grid-template-columns: minmax(0, 1fr) 46px;
 }
+/* たたみ中は可読行長の上限を外し、本文カラムの全幅を使う */
+.thread-shell.comments-collapsed .content-view.markdown-body,
+.thread-shell.comments-collapsed .content-view.text-body {
+  max-width: none;
+}
 .thread-main {
   min-width: 0;
   background: var(--surface);
