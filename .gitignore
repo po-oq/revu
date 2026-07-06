@@ -1,0 +1,7 @@
+.superpowers/
+docs/
+.DS_Store
+data/
+dist/
+/revu
+/revu.exe

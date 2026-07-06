@@ -1,0 +1,1995 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>revu mock</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom/dist/svg-pan-zoom.min.js"></script>
+  <style>
+    :root {
+      --bg: #f4f5f6;
+      --surface: #ffffff;
+      --surface-soft: #f8f9fa;
+      --line: #e5e7ea;
+      --line-strong: #d4d7dc;
+      --text: #17181c;
+      --muted: #6b7280;
+      --accent: #d3381c;
+      --accent-deep: #b22b12;
+      --accent-soft: #fceee9;
+      --danger: #b42318;
+      --danger-soft: #fef3f2;
+      --radius-lg: 12px;
+      --radius-md: 8px;
+      --radius-sm: 6px;
+      --shadow-sm: 0 1px 2px rgba(23, 24, 28, 0.04);
+      --shadow-md: 0 1px 2px rgba(23, 24, 28, 0.04), 0 6px 20px -8px rgba(23, 24, 28, 0.1);
+      --font-ui: "IBM Plex Sans JP", "Hiragino Sans", "Noto Sans JP", system-ui, -apple-system, sans-serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-family: var(--font-ui);
+    }
+
+    * { box-sizing: border-box; }
+    html { scrollbar-gutter: stable; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, textarea, select { font: inherit; color: inherit; }
+    button {
+      border: 1px solid var(--line-strong);
+      background: var(--surface);
+      color: var(--text);
+      border-radius: var(--radius-md);
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-color 0.13s ease, color 0.13s ease, background 0.13s ease;
+    }
+    button:hover {
+      border-color: var(--text);
+      background: var(--surface);
+    }
+    button:active { background: var(--surface-soft); }
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: var(--radius-sm);
+    }
+    .primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .primary:hover {
+      background: var(--accent-deep);
+      border-color: var(--accent-deep);
+      color: #fff;
+    }
+
+    .app { min-height: 100vh; display: flex; flex-direction: column; }
+
+    .topbar {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      border: 0;
+      background: transparent;
+      padding: 6px 8px;
+      font-family: var(--font-mono);
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+    .brand:hover { color: var(--accent-deep); background: transparent; }
+    .brand-mark {
+      width: 22px;
+      height: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 5px;
+      background: var(--accent);
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      flex: none;
+    }
+    .top-actions { display: flex; align-items: center; gap: 8px; }
+    .author-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      padding: 6px 13px 6px 8px;
+      max-width: 200px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .avatar-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #9aa1ab;
+      flex: none;
+    }
+    .avatar-dot[data-author-color="shu"] { background: #d3381c; }
+    .avatar-dot[data-author-color="ai"] { background: #19558c; }
+    .avatar-dot[data-author-color="tokiwa"] { background: #1c7b4e; }
+    .avatar-dot[data-author-color="sumire"] { background: #6f51a1; }
+
+    .workspace { width: min(1480px, 100%); margin: 0 auto; padding: 24px 20px 48px; flex: 1; }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+      overflow: clip; /* hiddenだと子孫のposition:stickyが効かなくなるためclipを優先 */
+    }
+    .muted { color: var(--muted); }
+    .error {
+      border: 1px solid #fecdca;
+      background: var(--danger-soft);
+      color: var(--danger);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      margin-bottom: 14px;
+      font-weight: 500;
+    }
+    .empty {
+      border: 1.5px dashed var(--line-strong);
+      border-radius: var(--radius-md);
+      padding: 28px;
+      text-align: center;
+      color: var(--muted);
+      background: var(--surface-soft);
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .section-head h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .section-head .muted { font-size: 13px; margin-top: 2px; }
+
+    .thread-list { display: flex; flex-direction: column; }
+    .thread-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      width: 100%;
+      text-align: left;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      border-radius: 0;
+      background: var(--surface);
+      padding: 15px 20px;
+      cursor: pointer;
+      transition: background 0.13s ease;
+    }
+    .thread-row:last-child { border-bottom: 0; }
+    .thread-row:hover { background: var(--surface-soft); border-color: var(--line); }
+    .thread-row-main { flex: 1; min-width: 0; }
+    .thread-row-title {
+      display: block;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .thread-row:hover .thread-row-title { color: var(--accent-deep); }
+    .thread-row-meta {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+    }
+
+    .type-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 46px;
+      height: 23px;
+      padding: 0 8px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface-soft);
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      flex: none;
+    }
+    .type-badge[data-type="markdown"] { background: #e6faf5; border-color: #b8ecdd; color: #0c7a63; }
+    .type-badge[data-type="html"] { background: #e9f3fc; border-color: #c4ddf5; color: #1864ab; }
+    .type-badge[data-type="text"] { background: #f1f3f5; border-color: #dee2e6; color: #495057; }
+    .type-badge[data-type="file"] { background: #f1edfd; border-color: #ddd2f7; color: #5f3dc4; }
+
+    .count-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 30px;
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      flex: none;
+    }
+
+    .thread-title-button {
+      border: 0;
+      background: transparent;
+      padding: 0;
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 700;
+      text-align: left;
+      letter-spacing: -0.01em;
+    }
+    .thread-title-button:hover {
+      color: var(--accent-deep);
+      background: transparent;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    .meta-row {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 3px;
+      font-family: var(--font-mono);
+    }
+
+    .create-grid {
+      display: grid;
+      grid-template-columns: 420px minmax(0, 1fr);
+      gap: 20px;
+    }
+    .form-stack { display: flex; flex-direction: column; gap: 14px; }
+    .field label {
+      display: block;
+      color: var(--text);
+      font-size: 12.5px;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .input, .textarea {
+      width: 100%;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      color: var(--text);
+      padding: 10px 13px;
+      transition: border-color 0.13s ease, box-shadow 0.13s ease;
+    }
+    .input:focus, .textarea:focus, .comment-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .textarea {
+      min-height: 220px;
+      resize: vertical;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .tabs {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 3px;
+      width: fit-content;
+    }
+    .tab {
+      border: 1px solid transparent;
+      background: transparent;
+      border-radius: var(--radius-sm);
+      padding: 5px 14px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .tab:hover { color: var(--text); background: #fff; border-color: var(--line); }
+    .tab[aria-selected="true"] {
+      background: #fff;
+      border-color: var(--line-strong);
+      color: var(--accent-deep);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .drop-zone {
+      min-height: 108px;
+      border: 1.5px dashed var(--line-strong);
+      border-radius: var(--radius-md);
+      background: var(--surface-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: var(--muted);
+      padding: 16px;
+      cursor: pointer;
+      transition: border-color 0.13s ease, background 0.13s ease, color 0.13s ease;
+    }
+    .drop-zone:hover { border-color: var(--accent); color: var(--accent-deep); }
+    .drop-zone.dragover {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--accent-deep);
+    }
+
+    .preview-frame {
+      min-height: 480px;
+      border-left: 1px solid var(--line);
+      padding-left: 20px;
+    }
+    .preview-label {
+      font-size: 12.5px;
+      color: var(--muted);
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .preview-box {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: #fff;
+      min-height: 420px;
+      overflow: auto;
+    }
+
+    .content-view {
+      padding: 32px 28px 48px;
+    }
+    /* 日本語長文の可読行長に絞り、サイズと行間を読み物向けに引き上げる */
+    .content-view.markdown-body {
+      max-width: 50em;
+      margin: 0 auto;
+      font-size: 15px;
+      line-height: 1.9;
+    }
+    .content-view.text-body {
+      max-width: 46em;
+      margin: 0 auto;
+      font-size: 13.5px;
+      line-height: 1.85;
+    }
+    .markdown-body h1, .markdown-body h2, .markdown-body h3 {
+      line-height: 1.4;
+      letter-spacing: -0.01em;
+      margin-top: 2em;
+    }
+    .markdown-body h1:first-child, .markdown-body h2:first-child { margin-top: 0; }
+    .markdown-body pre {
+      background: #17181c;
+      color: #e5e7eb;
+      border-radius: var(--radius-md);
+      padding: 16px;
+      overflow: auto;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .markdown-body code { font-family: var(--font-mono); }
+    .markdown-body table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1.2em 0;
+      font-size: 13.5px;
+      line-height: 1.6;
+    }
+    .markdown-body th, .markdown-body td {
+      border: 1px solid var(--line-strong);
+      padding: 8px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .markdown-body th {
+      background: var(--surface-soft);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .text-body {
+      white-space: pre-wrap;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .html-frame {
+      width: 100%;
+      height: 200px;
+      min-height: 120px;
+      border: 0;
+      background: white;
+      display: block;
+      transition: height 0.15s ease;
+    }
+    .file-preview { padding: 20px; }
+
+    .mermaid-shell {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: white;
+      overflow: hidden;
+      margin: 16px 0;
+    }
+    .mermaid-toolbar {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      padding: 7px 8px;
+      background: var(--surface-soft);
+    }
+    .mermaid-toolbar button {
+      padding: 3px 10px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .mermaid-canvas {
+      height: 440px;
+      overflow: hidden;
+      cursor: grab;
+    }
+    .mermaid-canvas:active { cursor: grabbing; }
+    .mermaid-canvas svg { display: block; }
+
+    .thread-shell {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 380px;
+      min-height: calc(100vh - 106px);
+    }
+    .thread-shell.comments-collapsed {
+      grid-template-columns: minmax(0, 1fr) 46px;
+    }
+    .thread-main {
+      min-width: 0;
+      background: var(--surface);
+    }
+    .thread-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 22px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-soft);
+    }
+    .thread-header h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .thread-header .muted {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      margin-top: 5px;
+    }
+
+    .comment-pane {
+      border-left: 1px solid var(--line);
+      background: var(--surface-soft);
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      /* 本文が長くてもペインごと画面に固定し、コメント一覧は内部スクロールさせる */
+      position: sticky;
+      top: 56px; /* topbarの高さ */
+      height: calc(100vh - 56px);
+      align-self: start;
+    }
+    .comment-pane.collapsed {
+      align-items: stretch;
+      justify-content: stretch;
+    }
+    .comment-tab {
+      writing-mode: vertical-rl;
+      height: 100%;
+      width: 46px;
+      border: 0;
+      border-radius: 0;
+      border-left: 1px solid var(--line);
+      background: var(--surface-soft);
+      color: var(--accent-deep);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+    }
+    .comment-tab:hover { background: var(--accent-soft); }
+    .comment-head {
+      height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+    .comment-head strong {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13.5px;
+    }
+    .comment-head button { padding: 4px 10px; font-size: 12px; }
+    .comment-list {
+      flex: 1;
+      overflow: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .comment {
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--line-strong);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      padding: 10px 12px;
+    }
+    /* 自分のコメントはほんのり朱背景で追跡しやすく */
+    .comment[data-own="true"] {
+      background: #fdf7f5;
+      border-color: #f2ddd6;
+    }
+    /* 投稿者識別色（和色）: 朱・藍・常磐・菫。「名無し」は無色のまま */
+    .comment[data-author-color="shu"] { border-left-color: #d3381c; }
+    .comment[data-author-color="ai"] { border-left-color: #19558c; }
+    .comment[data-author-color="tokiwa"] { border-left-color: #1c7b4e; }
+    .comment[data-author-color="sumire"] { border-left-color: #6f51a1; }
+    .comment-author { font-weight: 600; }
+    .comment-author[data-author-color="shu"] { color: #b22b12; }
+    .comment-author[data-author-color="ai"] { color: #19558c; }
+    .comment-author[data-author-color="tokiwa"] { color: #1c7b4e; }
+    .comment-author[data-author-color="sumire"] { color: #6f51a1; }
+    .time { cursor: default; }
+    .danger-ghost {
+      color: var(--danger);
+      border-color: #f0c8c2;
+    }
+    .danger-ghost:hover {
+      color: var(--danger);
+      border-color: var(--danger);
+      background: var(--danger-soft);
+    }
+
+    .comment-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      margin-bottom: 4px;
+    }
+    .comment-delete {
+      border: 0;
+      background: transparent;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      flex: none;
+    }
+    .comment-delete:hover {
+      color: var(--danger);
+      background: var(--danger-soft);
+      border-color: transparent;
+    }
+    /* ホバーできる環境ではコメントにポインタを乗せた時だけ表示（一覧の視認性を保つ） */
+    @media (hover: hover) {
+      .comment-delete { opacity: 0; transition: opacity 0.13s ease; }
+      .comment:hover .comment-delete,
+      .comment:focus-within .comment-delete { opacity: 1; }
+    }
+    .comment-body { white-space: pre-wrap; font-size: 13.5px; line-height: 1.55; }
+    .anchor {
+      color: var(--accent-deep);
+      background: var(--accent-soft);
+      border: 1px solid #f4cfc3;
+      border-radius: 4px;
+      padding: 0 5px;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      font-weight: 600;
+    }
+    .comment-form {
+      border-top: 1px solid var(--line);
+      padding: 14px;
+      background: #fff;
+    }
+    .comment-input {
+      width: 100%;
+      min-height: 88px;
+      resize: vertical;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      font-size: 13.5px;
+      transition: border-color 0.13s ease, box-shadow 0.13s ease;
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface-soft);
+      padding: 3px 10px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+    }
+    .chip button {
+      border: 0;
+      background: transparent;
+      padding: 0 2px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1;
+    }
+    .chip button:hover { color: var(--danger); }
+
+    .attachment-preview {
+      margin-top: 8px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 10px;
+      background: var(--surface-soft);
+    }
+    .attachment-preview img {
+      max-width: 100%;
+      max-height: 220px;
+      display: block;
+      border-radius: var(--radius-sm);
+    }
+    .attachment-preview a { color: var(--accent-deep); font-weight: 600; }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+    @media (max-width: 980px) {
+      .create-grid { grid-template-columns: 1fr; }
+      .preview-frame { border-left: 0; padding-left: 0; }
+    }
+    @media (max-width: 860px) {
+      .workspace { padding: 14px 12px 32px; }
+      .topbar { padding: 0 12px; }
+      .thread-shell,
+      .thread-shell.comments-collapsed {
+        grid-template-columns: 1fr;
+      }
+      .thread-shell.comments-collapsed { align-content: start; }
+      .comment-pane {
+        min-height: 360px;
+        border-left: 0;
+        border-top: 1px solid var(--line);
+        position: static;
+        height: auto;
+      }
+      /* 縦積みレイアウトでは投稿フォームだけ画面下に追従させる */
+      .comment-form { position: sticky; bottom: 0; z-index: 2; }
+      .comment-pane.collapsed { align-self: start; height: 48px; min-height: 48px; }
+      .comment-tab { writing-mode: horizontal-tb; height: 48px; width: 100%; border-left: 0; }
+    }
+    @media (max-width: 640px) {
+      .thread-row { padding: 13px 14px; gap: 10px; }
+      .thread-row-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .top-actions { gap: 6px; }
+      .top-actions button { padding: 7px 10px; }
+      .section-head { flex-wrap: wrap; }
+      .mermaid-canvas { height: 320px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="app"></div>
+  <script>
+    const STORAGE_KEY = "revu.mock.state.v1";
+    const AUTHOR_KEY = "revu.mock.author.v1";
+    const app = document.querySelector("#app");
+    const blobStore = new Map();
+
+    const state = {
+      threads: [],
+      comments: [],
+      currentAuthor: "名無し",
+      selectedThreadId: null,
+      view: "home",
+      createType: "markdown",
+      commentsCollapsed: false,
+      drafts: {},
+      errors: []
+    };
+
+    function nowIso() {
+      return new Date().toISOString();
+    }
+
+    function id(prefix) {
+      return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    }
+
+    function formatDate(iso) {
+      return new Intl.DateTimeFormat("ja-JP", {
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      }).format(new Date(iso));
+    }
+
+    function formatDateFull(iso) {
+      return new Intl.DateTimeFormat("ja-JP", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      }).format(new Date(iso));
+    }
+
+    function formatRelative(iso) {
+      const time = new Date(iso).getTime();
+      if (!Number.isFinite(time)) return formatDate(iso);
+      const diff = Date.now() - time;
+      if (diff < 45 * 1000) return "たった今";
+      const minutes = Math.floor(diff / 60000);
+      if (minutes < 60) return `${minutes}分前`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}時間前`;
+      const days = Math.floor(hours / 24);
+      if (days < 7) return `${days}日前`;
+      return formatDate(iso);
+    }
+
+    // 相対時刻＋ホバー(title)で絶対時刻を出すHTMLを返す
+    function timeLabel(iso) {
+      return `<span class="time" title="${escapeHtml(formatDateFull(iso))}">${escapeHtml(formatRelative(iso))}</span>`;
+    }
+
+    // 投稿者名から決定的に識別色を割り当てる（和色4色 / 「名無し」は無色）
+    const AUTHOR_PALETTE = ["shu", "ai", "tokiwa", "sumire"];
+    function authorColorKey(author) {
+      const name = String(author || "").trim();
+      if (!name || name === "名無し") return "none";
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) {
+        hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+      }
+      return AUTHOR_PALETTE[hash % AUTHOR_PALETTE.length];
+    }
+
+    function formatBytes(size) {
+      if (!Number.isFinite(size)) return "-";
+      if (size < 1024) return `${size} B`;
+      if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+      return `${(size / 1024 / 1024).toFixed(1)} MB`;
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function typeIcon(type) {
+      return {
+        markdown: "MD",
+        html: "HTML",
+        text: "TXT",
+        file: "FILE"
+      }[type] || "DOC";
+    }
+
+    function ensureDraft(type = state.createType) {
+      if (!state.drafts[type]) {
+        state.drafts[type] = {
+          title: "",
+          body: "",
+          fileMeta: null,
+          fileAttachment: null
+        };
+      }
+      return state.drafts[type];
+    }
+
+    function setCreateType(type) {
+      state.createType = type;
+      ensureDraft(type);
+      renderApp();
+    }
+
+    function updateDraftField(field, value) {
+      const draft = ensureDraft();
+      draft[field] = value;
+    }
+
+    function ensureCommentDraft(threadId = state.selectedThreadId) {
+      const key = `comment:${threadId}`;
+      if (!state.drafts[key]) {
+        state.drafts[key] = { body: "", attachments: [] };
+      }
+      return state.drafts[key];
+    }
+
+    function nextCommentNumber(threadId) {
+      const comments = commentsForThread(threadId);
+      return comments.length ? Math.max(...comments.map((comment) => comment.number)) + 1 : 1;
+    }
+
+    function fileToMeta(file, ownerKind = "draft", ownerId = "draft") {
+      return {
+        id: id("att"),
+        name: file.name || "pasted-file",
+        size: file.size,
+        type: file.type || "application/octet-stream",
+        createdAt: nowIso(),
+        ownerKind,
+        ownerId
+      };
+    }
+
+    function safeDomId(value) {
+      return String(value).replace(/[^A-Za-z0-9_-]/g, "-");
+    }
+
+    function readTextFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(reader.error || new Error("file read failed"));
+        reader.readAsText(file);
+      });
+    }
+
+    function isTextPreviewable(meta) {
+      const name = meta.name.toLowerCase();
+      return (meta.type || "").startsWith("text/") ||
+        [".txt", ".md", ".html", ".css", ".js", ".json"].some((suffix) => name.endsWith(suffix));
+    }
+
+    function releaseAttachment(meta) {
+      if (!meta) return;
+      const blob = blobStore.get(meta.id);
+      if (blob?.url) URL.revokeObjectURL(blob.url);
+      blobStore.delete(meta.id);
+    }
+
+    function deleteThread() {
+      const thread = state.threads.find((item) => item.id === state.selectedThreadId);
+      if (!thread) return;
+      const count = commentsForThread(thread.id).length;
+      const ok = confirm(`スレ「${thread.title}」を削除しますか？\nコメント${count}件と添付ファイルも一緒に削除されます。この操作は元に戻せません。`);
+      if (!ok) return;
+      for (const comment of commentsForThread(thread.id)) {
+        (comment.attachments || []).forEach(releaseAttachment);
+      }
+      releaseAttachment(thread.fileAttachment);
+      state.comments = state.comments.filter((comment) => comment.threadId !== thread.id);
+      state.threads = state.threads.filter((item) => item.id !== thread.id);
+      delete state.drafts[`comment:${thread.id}`];
+      clearErrors();
+      saveState();
+      goHome();
+    }
+
+    function deleteComment(commentId) {
+      const comment = state.comments.find((item) => item.id === commentId);
+      if (!comment) return;
+      // 番号は詰めない: >>n アンカーが別コメントを指してしまうのを防ぐため欠番として維持する
+      const ok = confirm(`コメント #${comment.number}（${comment.author}）を削除しますか？`);
+      if (!ok) return;
+      (comment.attachments || []).forEach(releaseAttachment);
+      state.comments = state.comments.filter((item) => item.id !== commentId);
+      saveState();
+      renderApp();
+    }
+
+    function clearDraftFileAttachment(draft) {
+      const attachment = draft.fileAttachment;
+      if (!attachment || attachment.ownerKind !== "draft") return;
+      const stored = blobStore.get(attachment.id);
+      if (stored?.url) URL.revokeObjectURL(stored.url);
+      blobStore.delete(attachment.id);
+      draft.fileAttachment = null;
+    }
+
+    async function handleCreateFiles(files) {
+      clearErrors();
+      const file = Array.from(files)[0];
+      if (!file) return;
+      const draft = ensureDraft();
+
+      if (state.createType === "file") {
+        const meta = fileToMeta(file);
+        clearDraftFileAttachment(draft);
+        draft.fileAttachment = meta;
+        draft.title = draft.title || file.name;
+        blobStore.set(meta.id, {
+          file,
+          url: URL.createObjectURL(file)
+        });
+        renderApp();
+        return;
+      }
+
+      try {
+        const text = await readTextFile(file);
+        draft.body = text;
+        draft.title = draft.title || file.name.replace(/\.[^.]+$/, "");
+        draft.fileMeta = fileToMeta(file);
+        renderApp();
+      } catch (error) {
+        pushError("ファイルを読み込めませんでした。");
+        renderApp();
+      }
+    }
+
+    function addCommentAttachments(files) {
+      const draft = ensureCommentDraft();
+      for (const file of Array.from(files)) {
+        const meta = fileToMeta(file, "draft-comment", state.selectedThreadId);
+        draft.attachments.push(meta);
+        blobStore.set(meta.id, {
+          file,
+          url: URL.createObjectURL(file)
+        });
+      }
+      renderApp();
+    }
+
+    function removeDraftAttachment(attachmentId) {
+      const draft = ensureCommentDraft();
+      draft.attachments = draft.attachments.filter((attachment) => attachment.id !== attachmentId);
+      const blob = blobStore.get(attachmentId);
+      if (blob) URL.revokeObjectURL(blob.url);
+      blobStore.delete(attachmentId);
+      renderApp();
+    }
+
+    function postComment() {
+      const thread = state.threads.find((item) => item.id === state.selectedThreadId);
+      if (!thread) return;
+      clearErrors();
+      const draft = ensureCommentDraft(thread.id);
+      const body = draft.body.trim();
+      if (!body && draft.attachments.length === 0) {
+        pushError("コメント本文または添付を追加してください。");
+        renderApp();
+        return;
+      }
+      const commentId = id("comment");
+      const attachments = draft.attachments.map((attachment) => ({
+        ...attachment,
+        ownerKind: "comment",
+        ownerId: commentId
+      }));
+      state.comments.push({
+        id: commentId,
+        threadId: thread.id,
+        number: nextCommentNumber(thread.id),
+        author: state.currentAuthor,
+        body,
+        attachments,
+        createdAt: nowIso()
+      });
+      thread.updatedBy = state.currentAuthor;
+      thread.updatedAt = nowIso();
+      state.drafts[`comment:${thread.id}`] = { body: "", attachments: [] };
+      saveState();
+      renderApp();
+    }
+
+    function createThreadFromDraft() {
+      clearErrors();
+      const type = state.createType;
+      const draft = ensureDraft(type);
+      const title = draft.title.trim();
+      if (!title) {
+        pushError("スレタイを入力してください。");
+        renderApp();
+        return;
+      }
+      if (type !== "file" && !draft.body.trim()) {
+        pushError("本文を入力するかファイルをアップロードしてください。");
+        renderApp();
+        return;
+      }
+      if (type === "file" && !draft.fileAttachment) {
+        pushError("ファイルをアップロードしてください。");
+        renderApp();
+        return;
+      }
+
+      const threadId = id("thread");
+      const thread = {
+        id: threadId,
+        type,
+        title,
+        body: type === "file" ? "" : draft.body,
+        sourceFileMeta: draft.fileMeta,
+        fileAttachment: draft.fileAttachment ? { ...draft.fileAttachment, ownerKind: "thread", ownerId: threadId } : null,
+        createdBy: state.currentAuthor,
+        updatedBy: state.currentAuthor,
+        createdAt: nowIso(),
+        updatedAt: nowIso()
+      };
+      if (thread.fileAttachment && blobStore.has(draft.fileAttachment.id)) {
+        blobStore.set(thread.fileAttachment.id, blobStore.get(draft.fileAttachment.id));
+      }
+      state.threads.unshift(thread);
+      state.drafts[type] = { title: "", body: "", fileMeta: null, fileAttachment: null };
+      saveState();
+      goThread(thread.id);
+    }
+
+    function createSampleState() {
+      const createdAt = "2026-07-03T06:00:00.000Z";
+      const markdownBody = `# Markdown仕様レビュー
+
+- トップはスレ一覧
+- 本文とコメントは並列
+- Mermaidはpan/zoomできる
+
+\`\`\`mermaid
+flowchart LR
+  A[Thread list] --> B[Create thread]
+  B --> C[Thread detail]
+  C --> D[Comments]
+\`\`\`
+`;
+
+      const htmlBody = `<style>
+body { font-family: system-ui, sans-serif; padding: 24px; color: #172033; }
+.note { border: 1px solid #bcd7f5; background: #eef7ff; padding: 14px; border-radius: 8px; }
+button { padding: 8px 12px; border-radius: 6px; border: 1px solid #9ab; background: white; }
+</style>
+<main>
+  <h1>HTML仕様メモ</h1>
+  <p class="note">HTMLをそのままiframe srcdocへ表示するサンプルです。</p>
+  <button onclick="document.body.dataset.clicked = 'true'; this.textContent = 'clicked';">sandbox JS</button>
+</main>`;
+
+      const textBody = `これは長めのプレーンテキストサンプルです。
+
+HTMLとして解釈せず、改行と空白を読みやすく保って表示します。
+コメント欄を折り畳んだとき、本文側が広くなることを確認します。`;
+
+      const threads = [
+        {
+          id: "thread-md-sample",
+          type: "markdown",
+          title: "Markdown仕様レビュー",
+          body: markdownBody,
+          sourceFileMeta: { name: "spec-review.md", size: markdownBody.length, type: "text/markdown" },
+          fileAttachment: null,
+          createdBy: "wata",
+          updatedBy: "名無し",
+          createdAt,
+          updatedAt: "2026-07-03T06:20:00.000Z"
+        },
+        {
+          id: "thread-html-sample",
+          type: "html",
+          title: "HTMLで書いた仕様メモ",
+          body: htmlBody,
+          sourceFileMeta: { name: "layout-note.html", size: htmlBody.length, type: "text/html" },
+          fileAttachment: null,
+          createdBy: "wata",
+          updatedBy: "guest",
+          createdAt: "2026-07-03T06:04:00.000Z",
+          updatedAt: "2026-07-03T06:18:00.000Z"
+        },
+        {
+          id: "thread-text-sample",
+          type: "text",
+          title: "プレーンテキスト議事メモ",
+          body: textBody,
+          sourceFileMeta: { name: "meeting.txt", size: textBody.length, type: "text/plain" },
+          fileAttachment: null,
+          createdBy: "名無し",
+          updatedBy: "名無し",
+          createdAt: "2026-07-03T06:08:00.000Z",
+          updatedAt: "2026-07-03T06:08:00.000Z"
+        },
+        {
+          id: "thread-file-sample",
+          type: "file",
+          title: "添付ファイル確認スレ",
+          body: "",
+          sourceFileMeta: null,
+          fileAttachment: {
+            id: "file-sample-1",
+            name: "sample-archive.zip",
+            size: 1048576,
+            type: "application/zip",
+            createdAt: "2026-07-03T06:12:00.000Z",
+            ownerKind: "thread",
+            ownerId: "thread-file-sample"
+          },
+          createdBy: "guest",
+          updatedBy: "名無し",
+          createdAt: "2026-07-03T06:12:00.000Z",
+          updatedAt: "2026-07-03T06:16:00.000Z"
+        }
+      ];
+
+      const comments = [
+        {
+          id: "comment-md-1",
+          threadId: "thread-md-sample",
+          number: 1,
+          author: "名無し",
+          body: "Mermaidのpan/zoomを本文内で確認したい。",
+          attachments: [],
+          createdAt: "2026-07-03T06:10:00.000Z"
+        },
+        {
+          id: "comment-md-2",
+          threadId: "thread-md-sample",
+          number: 2,
+          author: "wata",
+          body: ">>1 スクショ添付もコメント下に出る想定です。",
+          attachments: [
+            {
+              id: "att-sample-1",
+              name: "screenshot-sample.png",
+              size: 245760,
+              type: "image/png",
+              createdAt: "2026-07-03T06:12:00.000Z",
+              ownerKind: "comment",
+              ownerId: "comment-md-2"
+            }
+          ],
+          createdAt: "2026-07-03T06:12:00.000Z"
+        },
+        {
+          id: "comment-html-1",
+          threadId: "thread-html-sample",
+          number: 1,
+          author: "guest",
+          body: "HTMLはCSS込みで貼り付ければ十分そう。",
+          attachments: [],
+          createdAt: "2026-07-03T06:18:00.000Z"
+        },
+        {
+          id: "comment-file-1",
+          threadId: "thread-file-sample",
+          number: 1,
+          author: "名無し",
+          body: "リロード後は実体なし表示になることを確認する。",
+          attachments: [],
+          createdAt: "2026-07-03T06:16:00.000Z"
+        }
+      ];
+
+      return { threads, comments };
+    }
+
+    function serializeState() {
+      return JSON.stringify({
+        threads: state.threads,
+        comments: state.comments
+      });
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, serializeState());
+        localStorage.setItem(AUTHOR_KEY, state.currentAuthor);
+      } catch (error) {
+        pushError("保存に失敗しました。localStorageの容量を確認してください。");
+      }
+    }
+
+    function loadState() {
+      try {
+        state.currentAuthor = localStorage.getItem(AUTHOR_KEY) || "名無し";
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) {
+          const sample = createSampleState();
+          state.threads = sample.threads;
+          state.comments = sample.comments;
+          saveState();
+          return;
+        }
+        const parsed = JSON.parse(raw);
+        state.threads = Array.isArray(parsed.threads) ? parsed.threads : [];
+        state.comments = Array.isArray(parsed.comments) ? parsed.comments : [];
+      } catch (error) {
+        state.currentAuthor = "名無し";
+        const sample = createSampleState();
+        state.threads = sample.threads;
+        state.comments = sample.comments;
+        pushError("保存データを読み込めなかったため、サンプルデータを表示しています。");
+      }
+    }
+
+    function pushError(message) {
+      state.errors = [message];
+    }
+
+    function clearErrors() {
+      state.errors = [];
+    }
+
+    function commentsForThread(threadId) {
+      return state.comments
+        .filter((comment) => comment.threadId === threadId)
+        .sort((a, b) => a.number - b.number);
+    }
+
+    function latestActor(thread) {
+      const comments = commentsForThread(thread.id);
+      const latestComment = comments.at(-1);
+      return latestComment ? latestComment.author : thread.updatedBy || thread.createdBy;
+    }
+
+    function latestTime(thread) {
+      const comments = commentsForThread(thread.id);
+      const latestComment = comments.at(-1);
+      return latestComment ? latestComment.createdAt : thread.updatedAt || thread.createdAt;
+    }
+
+    function goHome() {
+      state.view = "home";
+      state.selectedThreadId = null;
+      renderApp();
+    }
+
+    function goCreate(type = "markdown") {
+      state.view = "create";
+      state.createType = type;
+      state.selectedThreadId = null;
+      renderApp();
+    }
+
+    function goThread(threadId) {
+      state.view = "thread";
+      state.selectedThreadId = threadId;
+      state.commentsCollapsed = false;
+      renderApp();
+    }
+
+    function editAuthor() {
+      const next = prompt("名前を入力", state.currentAuthor);
+      if (next === null) return;
+      const trimmed = next.trim();
+      state.currentAuthor = trimmed || "名無し";
+      saveState();
+      renderApp();
+    }
+
+    function startEditThread() {
+      const thread = state.threads.find((item) => item.id === state.selectedThreadId);
+      if (!thread) {
+        pushError("編集対象のスレが見つかりません。");
+        renderApp();
+        return;
+      }
+      state.view = "edit";
+      state.drafts.edit = {
+        threadId: thread.id,
+        title: thread.title,
+        body: thread.body
+      };
+      clearErrors();
+      renderApp();
+    }
+
+    function saveThreadEdit() {
+      const draft = state.drafts.edit;
+      const thread = state.threads.find((item) => item.id === draft?.threadId);
+      if (!thread) {
+        pushError("編集対象のスレが見つかりません。");
+        renderApp();
+        return;
+      }
+      const title = (draft.title || "").trim();
+      if (!title) {
+        pushError("スレタイを入力してください。");
+        renderApp();
+        return;
+      }
+      thread.title = title;
+      // Fileスレは本文を持たないため、タイトルのみ更新する
+      if (thread.type !== "file") {
+        thread.body = draft.body;
+      }
+      thread.updatedBy = state.currentAuthor;
+      thread.updatedAt = nowIso();
+      saveState();
+      state.view = "thread";
+      state.selectedThreadId = thread.id;
+      clearErrors();
+      renderApp();
+    }
+
+    function resetSamples() {
+      const sample = createSampleState();
+      state.threads = sample.threads;
+      state.comments = sample.comments;
+      state.selectedThreadId = null;
+      state.view = "home";
+      state.createType = "markdown";
+      state.commentsCollapsed = false;
+      state.drafts = {};
+      clearErrors();
+      saveState();
+      renderApp();
+    }
+
+    function renderApp() {
+      app.innerHTML = `
+        <header class="topbar">
+          <button class="brand" data-action="home"><span class="brand-mark">R</span>revu</button>
+          <div class="top-actions">
+            <button class="primary" data-action="create">＋ 新規スレ</button>
+            <button data-action="reset-samples">サンプルに戻す</button>
+            <button class="author-button" data-action="edit-author" title="投稿者名を変更"><span class="avatar-dot" data-author-color="${authorColorKey(state.currentAuthor)}"></span>${escapeHtml(state.currentAuthor)}</button>
+          </div>
+        </header>
+        <main class="workspace">
+          ${state.errors.map((error) => `<div class="error">${escapeHtml(error)}</div>`).join("")}
+          ${renderCurrentView()}
+        </main>
+      `;
+      const selected = state.threads.find((thread) => thread.id === state.selectedThreadId);
+      const markdownContainer = app.querySelector("[data-rendered-markdown]");
+      if (state.view === "create" && state.createType === "markdown" && markdownContainer) {
+        hydrateMermaid(markdownContainer, ensureDraft().body || "# Markdown preview");
+      } else if (state.view === "thread" && selected && selected.type === "markdown" && markdownContainer) {
+        hydrateMermaid(markdownContainer, selected.body);
+      } else if (state.view === "edit" && markdownContainer) {
+        const draft = state.drafts.edit;
+        const thread = state.threads.find((item) => item.id === draft?.threadId);
+        if (thread?.type === "markdown") hydrateMermaid(markdownContainer, draft.body);
+      }
+    }
+
+    function renderCurrentView() {
+      if (state.view === "create") return renderCreateView();
+      if (state.view === "edit") return renderEditView();
+      if (state.view === "thread") return renderThreadView();
+      return renderHomeView();
+    }
+
+    function renderHomeView() {
+      const rows = state.threads
+        .slice()
+        .sort((a, b) => new Date(latestTime(b)) - new Date(latestTime(a)))
+        .map((thread) => `
+          <button class="thread-row" data-action="open-thread" data-thread-id="${escapeHtml(thread.id)}">
+            <span class="type-badge" data-type="${escapeHtml(thread.type)}">${escapeHtml(typeIcon(thread.type))}</span>
+            <span class="thread-row-main">
+              <span class="thread-row-title">${escapeHtml(thread.title)}</span>
+              <span class="thread-row-meta">${escapeHtml(thread.createdBy)} / ${escapeHtml(latestActor(thread))} ・ ${timeLabel(latestTime(thread))}</span>
+            </span>
+            <span class="count-pill">${commentsForThread(thread.id).length}</span>
+          </button>
+        `)
+        .join("");
+
+      return `
+        <section class="section-head">
+          <div>
+            <h1>スレッド一覧</h1>
+            <div class="muted">単体HTMLモックです。別ブラウザや別端末とは投稿を共有しません。</div>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="thread-list">
+            ${rows || `<div class="empty" style="border:0; border-radius:0;">まだスレッドがありません。「＋ 新規スレ」から作成できます。</div>`}
+          </div>
+        </section>
+      `;
+    }
+
+    function renderCreateView() {
+      const draft = ensureDraft();
+      const type = state.createType;
+      const bodyEnabled = type !== "file";
+      return `
+        <section class="section-head">
+          <div>
+            <h1>新規スレッド</h1>
+            <div class="muted">md/html/textはアップロード内容をtextareaへ読み込み、textareaの中身を本文にします。</div>
+          </div>
+          <button data-action="home">← 一覧へ</button>
+        </section>
+        <section class="panel" style="padding: 20px;">
+          <div class="create-grid">
+            <div class="form-stack">
+              <div class="field">
+                <label>スレタイ</label>
+                <input class="input" data-field="title" value="${escapeHtml(draft.title)}" placeholder="スレタイ">
+              </div>
+              <div class="tabs" role="tablist">
+                ${["markdown", "html", "text", "file"].map((item) => `
+                  <button class="tab" role="tab" aria-selected="${item === type}" data-action="set-create-type" data-type="${item}">
+                    ${escapeHtml(typeIcon(item))}
+                  </button>
+                `).join("")}
+              </div>
+              <label class="drop-zone" data-drop="create">
+                <input type="file" data-action="choose-create-file" style="display:none">
+                <span>${escapeHtml(type)} ファイルをここにドロップ<br>またはクリックして選択</span>
+              </label>
+              ${draft.fileMeta ? `<div class="muted">読込済み: ${escapeHtml(draft.fileMeta.name)} (${formatBytes(draft.fileMeta.size)})</div>` : ""}
+              ${draft.fileAttachment ? `<div class="muted">添付: ${escapeHtml(draft.fileAttachment.name)} (${formatBytes(draft.fileAttachment.size)})</div>` : ""}
+              ${bodyEnabled ? `
+                <div class="field">
+                  <label>直接入力</label>
+                  <textarea class="textarea" data-field="body" placeholder="ここに${escapeHtml(type)}を入力">${escapeHtml(draft.body)}</textarea>
+                </div>
+              ` : ""}
+              <button class="primary" data-action="create-thread">スレッドを作成</button>
+            </div>
+            <div class="preview-frame">
+              <div class="preview-label">プレビュー</div>
+              <div class="preview-box">${renderDraftPreview(type, draft)}</div>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function renderDraftPreview(type, draft) {
+      if (type === "markdown") return renderMarkdown(draft.body || "# Markdown preview");
+      if (type === "html") return renderHtmlFrame(draft.body || "<p>HTML preview</p>");
+      if (type === "text") return renderText(draft.body || "Text preview");
+      if (type === "file") return renderAttachmentPreview(draft.fileAttachment);
+      return "";
+    }
+
+    function refreshCreatePreview() {
+      const preview = app.querySelector(".preview-box");
+      if (!preview || state.view !== "create") return;
+      preview.innerHTML = renderDraftPreview(state.createType, ensureDraft());
+      const markdownContainer = preview.querySelector("[data-rendered-markdown]");
+      if (state.createType === "markdown" && markdownContainer) {
+        hydrateMermaid(markdownContainer, ensureDraft().body || "# Markdown preview");
+      }
+    }
+
+    function renderEditView() {
+      const draft = state.drafts.edit;
+      const thread = state.threads.find((item) => item.id === draft?.threadId);
+      if (!thread) return `<div class="panel" style="padding:18px;">編集対象が見つかりません。</div>`;
+      const bodyEnabled = thread.type !== "file";
+      return `
+        <section class="section-head">
+          <div>
+            <h1>スレッドを編集</h1>
+            <div class="muted"><span class="type-badge" data-type="${escapeHtml(thread.type)}">${escapeHtml(typeIcon(thread.type))}</span></div>
+          </div>
+          <button data-action="open-thread" data-thread-id="${escapeHtml(thread.id)}">キャンセル</button>
+        </section>
+        <section class="panel" style="padding: 20px;">
+          <div class="create-grid">
+            <div class="form-stack">
+              <div class="field">
+                <label>スレタイ</label>
+                <input class="input" data-edit-title value="${escapeHtml(draft.title)}" placeholder="スレタイ">
+              </div>
+              ${bodyEnabled ? `
+                <div class="field">
+                  <label>本文</label>
+                  <textarea class="textarea" data-edit-body>${escapeHtml(draft.body)}</textarea>
+                </div>
+              ` : `
+                <div class="muted">Fileスレはタイトルのみ編集できます。ファイルの差し替えはこのモックでは対象外です。</div>
+              `}
+              <button class="primary" data-action="save-thread-edit">保存する</button>
+            </div>
+            <div class="preview-frame">
+              <div class="preview-label">プレビュー</div>
+              <div class="preview-box">${renderDraftPreview(thread.type, { body: draft.body, fileAttachment: thread.fileAttachment })}</div>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function refreshEditPreview() {
+      const preview = app.querySelector(".preview-box");
+      const draft = state.drafts.edit;
+      const thread = state.threads.find((item) => item.id === draft?.threadId);
+      if (!preview || state.view !== "edit" || !thread) return;
+      preview.innerHTML = renderDraftPreview(thread.type, { body: draft.body, fileAttachment: thread.fileAttachment });
+      const markdownContainer = preview.querySelector("[data-rendered-markdown]");
+      if (thread.type === "markdown" && markdownContainer) {
+        hydrateMermaid(markdownContainer, draft.body);
+      }
+    }
+
+    let mermaidRenderSequence = 0;
+
+    function renderMarkdown(source) {
+      if (!window.marked || !window.DOMPurify) {
+        return `<div class="error">Markdownライブラリを読み込めませんでした。</div>`;
+      }
+      const mermaidBlocks = [];
+      const replaced = String(source || "").replace(/```mermaid\s*([\s\S]*?)```/g, (_, code) => {
+        const index = mermaidBlocks.push(code.trim()) - 1;
+        return `<div data-mermaid-index="${index}"></div>`;
+      });
+      const html = DOMPurify.sanitize(marked.parse(replaced));
+      return `<div class="content-view markdown-body" data-rendered-markdown>${html}</div>`;
+    }
+
+    async function hydrateMermaid(container, source) {
+      const blocks = [];
+      String(source || "").replace(/```mermaid\s*([\s\S]*?)```/g, (_, code) => {
+        blocks.push(code.trim());
+        return "";
+      });
+      const targets = container.querySelectorAll("[data-mermaid-index]");
+      if (!window.mermaid || !window.svgPanZoom) {
+        for (const target of targets) {
+          target.innerHTML = `<div class="error">Mermaid図を描画できませんでした。</div>`;
+        }
+        return;
+      }
+      for (const target of targets) {
+        const index = Number(target.dataset.mermaidIndex);
+        const code = blocks[index];
+        try {
+          const renderId = `mermaid-${Date.now()}-${index}-${mermaidRenderSequence++}`;
+          const result = await mermaid.render(renderId, code);
+          const svg = DOMPurify.sanitize(result.svg);
+          target.innerHTML = `
+            <div class="mermaid-shell">
+              <div class="mermaid-toolbar">
+                <button data-mermaid-action="zoom-in" title="拡大">＋</button>
+                <button data-mermaid-action="zoom-out" title="縮小">−</button>
+                <button data-mermaid-action="zoom-reset" title="図全体を表示">全体表示</button>
+              </div>
+              <div class="mermaid-canvas">${svg}</div>
+            </div>
+          `;
+          const svgElement = target.querySelector(".mermaid-canvas svg");
+          // svg-pan-zoom はコンテナいっぱいの SVG を前提とするため、
+          // mermaid が付与する固定サイズや max-width を外して 100% に揃える
+          svgElement.removeAttribute("width");
+          svgElement.removeAttribute("height");
+          svgElement.style.width = "100%";
+          svgElement.style.height = "100%";
+          svgElement.style.maxWidth = "none";
+          // 図のアスペクト比に合わせてキャンバス高さを可変にする（横長図の下余白対策）
+          const canvas = target.querySelector(".mermaid-canvas");
+          const viewBox = svgElement.viewBox && svgElement.viewBox.baseVal;
+          if (canvas && viewBox && viewBox.width > 0 && viewBox.height > 0) {
+            const canvasWidth = canvas.clientWidth || 800;
+            const ideal = canvasWidth * (viewBox.height / viewBox.width);
+            const height = Math.max(240, Math.min(Math.ceil(ideal), 640));
+            canvas.style.height = `${height}px`;
+          }
+          const panZoom = svgPanZoom(svgElement, {
+            zoomEnabled: true,
+            controlIconsEnabled: false,
+            fit: true,
+            center: true,
+            minZoom: 0.2,
+            maxZoom: 12,
+            zoomScaleSensitivity: 0.3
+          });
+          const fitAll = () => {
+            panZoom.resize();
+            panZoom.fit();
+            panZoom.center();
+          };
+          // レイアウト確定後にもう一度 fit しないと初期表示で図が見切れる
+          requestAnimationFrame(fitAll);
+          target.querySelector('[data-mermaid-action="zoom-in"]').addEventListener("click", (event) => {
+            event.stopPropagation();
+            panZoom.zoomIn();
+          });
+          target.querySelector('[data-mermaid-action="zoom-out"]').addEventListener("click", (event) => {
+            event.stopPropagation();
+            panZoom.zoomOut();
+          });
+          target.querySelector('[data-mermaid-action="zoom-reset"]').addEventListener("click", (event) => {
+            event.stopPropagation();
+            fitAll();
+          });
+        } catch (error) {
+          target.innerHTML = `<div class="error">Mermaid図を描画できませんでした。</div>`;
+        }
+      }
+    }
+
+    let htmlFrameSequence = 0;
+
+    function renderHtmlFrame(source) {
+      const frameId = `frame-${Date.now().toString(36)}-${htmlFrameSequence++}`;
+      // sandbox に allow-same-origin を足すと投稿HTMLが親のlocalStorageへ
+      // アクセスできてしまうため、postMessageで高さだけを親へ通知する方式にする。
+      const probe = `<script>(function () {
+        var post = function () {
+          try {
+            var body = document.body;
+            if (!body) return;
+            var rect = body.getBoundingClientRect();
+            var marginBottom = parseFloat(getComputedStyle(body).marginBottom) || 0;
+            parent.postMessage({
+              type: "revu-frame-height",
+              frameId: "${frameId}",
+              height: Math.ceil(rect.bottom + marginBottom)
+            }, "*");
+          } catch (e) { /* noop */ }
+        };
+        if (window.ResizeObserver) {
+          var observer = new ResizeObserver(post);
+          observer.observe(document.documentElement);
+          if (document.body) observer.observe(document.body);
+        }
+        window.addEventListener("load", post);
+        setTimeout(post, 60);
+        setTimeout(post, 400);
+      })();<\/script>`;
+      const doc = String(source || "") + probe;
+      return `<iframe class="html-frame" title="HTMLプレビュー" data-frame-id="${escapeHtml(frameId)}" sandbox="allow-scripts allow-forms allow-popups" srcdoc="${escapeHtml(doc)}"></iframe>`;
+    }
+
+    function renderText(source) {
+      return `<div class="content-view text-body">${escapeHtml(source || "")}</div>`;
+    }
+
+    function renderAttachmentPreview(meta) {
+      if (!meta) return `<div class="empty">ファイルが選択されていません。</div>`;
+      const blob = blobStore.get(meta.id);
+      if (!blob) {
+        return `
+          <div class="file-preview">
+            <strong>${escapeHtml(meta.name)}</strong>
+            <div class="muted">${escapeHtml(meta.type || "unknown")} / ${formatBytes(meta.size)}</div>
+            <p class="muted">このモックではリロード後にファイル実体を復元できません。</p>
+          </div>
+        `;
+      }
+      if ((meta.type || "").startsWith("image/")) {
+        return `
+          <div class="attachment-preview">
+            <img src="${blob.url}" alt="${escapeHtml(meta.name)}">
+            <div><a href="${blob.url}" download="${escapeHtml(meta.name)}">ダウンロード</a></div>
+          </div>
+        `;
+      }
+      if (isTextPreviewable(meta)) {
+        const previewId = `text-preview-${safeDomId(meta.id)}`;
+        const updatePreview = (text) => {
+          const node = document.getElementById(previewId);
+          if (node) node.textContent = text.slice(0, 4000);
+        };
+        if (!blob.textPromise) {
+          blob.textPromise = blob.file.text().then((text) => {
+            blob.text = text;
+            return text;
+          });
+        }
+        if (typeof blob.text === "string") {
+          queueMicrotask(() => updatePreview(blob.text));
+        } else {
+          blob.textPromise.then(updatePreview);
+        }
+        return `
+          <div class="attachment-preview">
+            <strong>${escapeHtml(meta.name)}</strong>
+            <div><a href="${blob.url}" download="${escapeHtml(meta.name)}">ダウンロード</a></div>
+            <pre id="${escapeHtml(previewId)}" class="text-body">loading text preview...</pre>
+          </div>
+        `;
+      }
+      return `
+        <div class="file-preview">
+          <strong>${escapeHtml(meta.name)}</strong>
+          <div class="muted">${escapeHtml(meta.type || "unknown")} / ${formatBytes(meta.size)}</div>
+          <a href="${blob.url}" download="${escapeHtml(meta.name)}">ダウンロード</a>
+        </div>
+      `;
+    }
+
+    function renderThreadBody(thread) {
+      if (!thread) return "";
+      if (thread.type === "markdown") return renderMarkdown(thread.body);
+      if (thread.type === "html") return renderHtmlFrame(thread.body);
+      if (thread.type === "text") return renderText(thread.body);
+      if (thread.type === "file") return renderAttachmentPreview(thread.fileAttachment);
+      return "";
+    }
+
+    function renderAnchoredText(body) {
+      const escaped = escapeHtml(body || "");
+      return escaped.replace(/&gt;&gt;(\d+)/g, '<span class="anchor">&gt;&gt;$1</span>');
+    }
+
+    function renderComments(thread) {
+      const comments = commentsForThread(thread.id);
+      if (!comments.length) return `<div class="empty">まだコメントはありません。<br>下のフォームから最初のコメントをどうぞ。</div>`;
+      return comments.map((comment) => {
+        // 「名無し」は誰のものか判別できないため自分ハイライトの対象外にする
+        const isOwn = comment.author === state.currentAuthor && comment.author !== "名無し";
+        return `
+        <article class="comment" data-author-color="${authorColorKey(comment.author)}" data-own="${isOwn}">
+          <div class="comment-meta">
+            <span>#${comment.number} <span class="comment-author" data-author-color="${authorColorKey(comment.author)}">${escapeHtml(comment.author)}</span> ・ ${timeLabel(comment.createdAt)}</span>
+            <button class="comment-delete" data-action="delete-comment" data-comment-id="${escapeHtml(comment.id)}" title="このコメントを削除">削除</button>
+          </div>
+          <div class="comment-body">${renderAnchoredText(comment.body)}</div>
+          ${(comment.attachments || []).map(renderAttachmentPreview).join("")}
+        </article>
+      `;
+      }).join("");
+    }
+
+    function renderThreadView() {
+      const thread = state.threads.find((item) => item.id === state.selectedThreadId);
+      if (!thread) {
+        return `<div class="panel" style="padding:18px;">スレが見つかりません。</div>`;
+      }
+      const count = commentsForThread(thread.id).length;
+      return `
+        <section class="panel thread-shell ${state.commentsCollapsed ? "comments-collapsed" : ""}">
+          <div class="thread-main">
+            <div class="thread-header">
+              <div>
+                <h1>${escapeHtml(thread.title)}</h1>
+                <div class="muted"><span class="type-badge" data-type="${escapeHtml(thread.type)}">${escapeHtml(typeIcon(thread.type))}</span> ${escapeHtml(thread.createdBy)} ・ ${timeLabel(thread.createdAt)}</div>
+              </div>
+              <div class="top-actions">
+                <button data-action="edit-thread">編集</button>
+                <button class="danger-ghost" data-action="delete-thread">削除</button>
+                <button data-action="home">← 一覧へ</button>
+              </div>
+            </div>
+            ${renderThreadBody(thread)}
+          </div>
+          ${state.commentsCollapsed ? `
+            <aside class="comment-pane collapsed">
+              <button class="comment-tab" data-action="toggle-comments">コメント ${count}</button>
+            </aside>
+          ` : `
+            <aside class="comment-pane">
+              <div class="comment-head">
+                <strong>コメント <span class="count-pill">${count}</span></strong>
+                <button data-action="toggle-comments">たたむ →</button>
+              </div>
+              <div class="comment-list">
+                ${renderComments(thread)}
+              </div>
+              ${renderCommentForm()}
+            </aside>
+          `}
+        </section>
+      `;
+    }
+
+    function renderCommentForm() {
+      const draft = ensureCommentDraft();
+      return `
+        <form class="comment-form" data-form="comment">
+          <textarea class="comment-input" data-comment-body placeholder="コメントを書く。>>1 でアンカー。Ctrl+V / drop で添付。">${escapeHtml(draft.body)}</textarea>
+          <div class="chips">
+            ${draft.attachments.map((attachment) => `
+              <span class="chip">
+                ${escapeHtml(attachment.name)}
+                <button type="button" data-action="remove-draft-attachment" data-attachment-id="${escapeHtml(attachment.id)}">x</button>
+              </span>
+            `).join("")}
+          </div>
+          <div style="display:flex; justify-content:flex-end; margin-top:8px;">
+            <button class="primary" type="submit">投稿する</button>
+          </div>
+        </form>
+      `;
+    }
+
+    app.addEventListener("click", (event) => {
+      const target = event.target.closest("[data-action]");
+      if (!target) return;
+
+      const action = target.dataset.action;
+      if (action === "home") goHome();
+      if (action === "create") goCreate();
+      if (action === "edit-author") editAuthor();
+      if (action === "open-thread") goThread(target.dataset.threadId);
+      if (action === "set-create-type") setCreateType(target.dataset.type);
+      if (action === "create-thread") createThreadFromDraft();
+      if (action === "remove-draft-attachment") removeDraftAttachment(target.dataset.attachmentId);
+      if (action === "edit-thread") startEditThread();
+      if (action === "delete-thread") deleteThread();
+      if (action === "delete-comment") deleteComment(target.dataset.commentId);
+      if (action === "save-thread-edit") saveThreadEdit();
+      if (action === "reset-samples" && confirm("サンプルデータに戻しますか？")) resetSamples();
+      if (action === "toggle-comments") {
+        state.commentsCollapsed = !state.commentsCollapsed;
+        renderApp();
+      }
+    });
+
+    app.addEventListener("input", (event) => {
+      if (event.target.matches("[data-edit-title]")) {
+        state.drafts.edit.title = event.target.value;
+        return;
+      }
+      if (event.target.matches("[data-edit-body]")) {
+        state.drafts.edit.body = event.target.value;
+        refreshEditPreview();
+        return;
+      }
+      if (event.target.matches("[data-comment-body]")) {
+        ensureCommentDraft().body = event.target.value;
+        return;
+      }
+      const field = event.target.dataset.field;
+      if (!field || state.view !== "create") return;
+      updateDraftField(field, event.target.value);
+      refreshCreatePreview();
+    });
+
+    app.addEventListener("submit", (event) => {
+      if (event.target.dataset.form === "comment") {
+        event.preventDefault();
+        postComment();
+      }
+    });
+
+    app.addEventListener("change", (event) => {
+      if (state.view !== "create") return;
+      if (event.target.dataset.action === "choose-create-file") {
+        handleCreateFiles(event.target.files);
+      }
+    });
+
+    app.addEventListener("paste", (event) => {
+      if (!event.target.matches("[data-comment-body]")) return;
+      const files = Array.from(event.clipboardData?.files || []);
+      if (files.length) {
+        event.preventDefault();
+        addCommentAttachments(files);
+      }
+    });
+
+    app.addEventListener("dragover", (event) => {
+      const commentInput = event.target.closest("[data-comment-body]");
+      if (commentInput) {
+        event.preventDefault();
+        return;
+      }
+      const zone = event.target.closest("[data-drop]");
+      if (!zone) return;
+      event.preventDefault();
+      zone.classList.add("dragover");
+    });
+
+    app.addEventListener("dragleave", (event) => {
+      const zone = event.target.closest("[data-drop]");
+      if (zone) zone.classList.remove("dragover");
+    });
+
+    app.addEventListener("drop", (event) => {
+      const commentInput = event.target.closest("[data-comment-body]");
+      if (commentInput) {
+        event.preventDefault();
+        addCommentAttachments(event.dataTransfer.files);
+        return;
+      }
+      const zone = event.target.closest("[data-drop]");
+      if (!zone) return;
+      event.preventDefault();
+      zone.classList.remove("dragover");
+      if (zone.dataset.drop === "create") {
+        handleCreateFiles(event.dataTransfer.files);
+      }
+    });
+
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || data.type !== "revu-frame-height") return;
+      // frameIdだけでなく送信元windowも照合して、他フレームからの偽装を防ぐ
+      const frames = app.querySelectorAll("iframe.html-frame[data-frame-id]");
+      for (const frame of frames) {
+        if (frame.contentWindow !== event.source) continue;
+        if (frame.dataset.frameId !== String(data.frameId)) continue;
+        const height = Math.max(120, Math.min(Math.ceil(Number(data.height) || 0), 20000));
+        frame.style.height = `${height}px`;
+        break;
+      }
+    });
+
+    function boot() {
+      if (window.mermaid) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: "strict",
+          theme: "neutral",
+          // htmlLabels: true だとラベルが foreignObject (SVG内HTML) で描画され、
+          // DOMPurify.sanitize が foreignObject を除去するためノードが空になる。
+          // false にして純粋な SVG <text> で描画させる。
+          flowchart: { htmlLabels: false, useMaxWidth: false },
+          class: { useMaxWidth: false },
+          sequence: { useMaxWidth: false },
+          er: { useMaxWidth: false },
+          state: { useMaxWidth: false },
+          journey: { useMaxWidth: false },
+          gantt: { useMaxWidth: false }
+        });
+      }
+      loadState();
+      renderApp();
+    }
+
+    boot();
+  </script>
+</body>
+</html>
