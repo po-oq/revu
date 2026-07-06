@@ -791,6 +791,14 @@ button:active { background: var(--surface-soft); }
   color: var(--muted);
   user-select: none;
 }
+.diff-line-num {
+  flex: none;
+  min-width: 4ch;
+  text-align: right;
+  color: var(--muted);
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
 .diff-line-text { min-width: 0; }
 .diff-line[data-op="add"] { background: #e6faf5; color: #0c7a63; }
 .diff-line[data-op="add"] .diff-line-sign { color: #0c7a63; }
