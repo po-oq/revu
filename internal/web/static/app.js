@@ -1443,9 +1443,13 @@ function renderHistoryHunks(hunks) {
 }
 
 function renderDiffHunk(hunk) {
+  let oldNo = hunk.oldStart;
+  let newNo = hunk.newStart;
   const rows = hunk.lines.map((line) => {
     const sign = line.op === "add" ? "+" : line.op === "del" ? "−" : " ";
-    return `<div class="diff-line" data-op="${escapeHtml(line.op)}"><span class="diff-line-sign">${sign}</span><span class="diff-line-text">${escapeHtml(line.text) || " "}</span></div>`;
+    const oldLabel = line.op === "add" ? "" : String(oldNo++);
+    const newLabel = line.op === "del" ? "" : String(newNo++);
+    return `<div class="diff-line" data-op="${escapeHtml(line.op)}"><span class="diff-line-num">${oldLabel}</span><span class="diff-line-num">${newLabel}</span><span class="diff-line-sign">${sign}</span><span class="diff-line-text">${escapeHtml(line.text) || " "}</span></div>`;
   }).join("");
   return `<div class="diff-hunk">${rows}</div>`;
 }
