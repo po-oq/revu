@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - run: go test ./... -count=1
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: darwin
+            goarch: arm64
+            binary: revu
+            package: revu-darwin-arm64.tar.gz
+          - goos: darwin
+            goarch: amd64
+            binary: revu
+            package: revu-darwin-amd64.tar.gz
+          - goos: windows
+            goarch: amd64
+            binary: revu.exe
+            package: revu-windows-amd64.zip
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p "dist/${{ matrix.goos }}-${{ matrix.goarch }}"
+          go build -trimpath -ldflags="-s -w" -o "dist/${{ matrix.goos }}-${{ matrix.goarch }}/${{ matrix.binary }}" ./cmd/revu
+
+      - name: Package macOS
+        if: matrix.goos == 'darwin'
+        run: tar -czf "${{ matrix.package }}" -C "dist/${{ matrix.goos }}-${{ matrix.goarch }}" "${{ matrix.binary }}"
+
+      - name: Package Windows
+        if: matrix.goos == 'windows'
+        run: cd "dist/${{ matrix.goos }}-${{ matrix.goarch }}" && zip "../../${{ matrix.package }}" "${{ matrix.binary }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.package }}
+          path: ${{ matrix.package }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: cd dist && sha256sum * > SHA256SUMS
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes
