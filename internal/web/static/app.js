@@ -910,6 +910,7 @@ async function selectHistoryVersion(seq) {
 }
 
 function renderApp() {
+  hideQuotePopup();
   app.innerHTML = `
     <header class="topbar">
       <button class="brand" data-action="home"><span class="brand-mark">R</span>revu</button>
@@ -1630,6 +1631,89 @@ window.addEventListener("message", (event) => {
     break;
   }
 });
+
+// --- 選択テキストの「コメントに追加」ポップアップ (#3) ---
+// body 直下のシングルトン要素。renderApp() の全体再描画に巻き込まれない。
+let quotePopupEl = null;
+let pendingQuoteText = "";
+
+function ensureQuotePopup() {
+  if (quotePopupEl) return quotePopupEl;
+  quotePopupEl = document.createElement("div");
+  quotePopupEl.className = "quote-popup";
+  quotePopupEl.hidden = true;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = "コメントに追加";
+  button.addEventListener("click", () => {
+    const text = pendingQuoteText;
+    hideQuotePopup();
+    window.getSelection()?.removeAllRanges();
+    appendQuoteToCommentDraft(text);
+  });
+  quotePopupEl.appendChild(button);
+  document.body.appendChild(quotePopupEl);
+  return quotePopupEl;
+}
+
+function hideQuotePopup() {
+  if (quotePopupEl) quotePopupEl.hidden = true;
+  pendingQuoteText = "";
+}
+
+function showQuotePopup(selection) {
+  // ボタンクリック時には選択が解除されている場合があるため、表示時点の文字列を保持する
+  pendingQuoteText = selection.toString();
+  const rect = selection.getRangeAt(selection.rangeCount - 1).getBoundingClientRect();
+  const el = ensureQuotePopup();
+  el.hidden = false;
+  const width = el.offsetWidth;
+  const height = el.offsetHeight;
+  const maxLeft = window.scrollX + document.documentElement.clientWidth - width - 8;
+  const left = Math.max(8, Math.min(rect.left + rect.width / 2 - width / 2 + window.scrollX, maxLeft));
+  // 画面下端で見切れる場合は選択範囲の上側に表示する
+  const below = rect.bottom + 6 + height <= document.documentElement.clientHeight;
+  const top = below ? rect.bottom + 6 : Math.max(8, rect.top - height - 6);
+  el.style.left = `${left}px`;
+  el.style.top = `${top + window.scrollY}px`;
+}
+
+function quotableSelection() {
+  if (state.view !== "thread") return null;
+  const thread = state.threads.find((item) => item.id === state.selectedThreadId);
+  if (!thread || (thread.type !== "markdown" && thread.type !== "text")) return null;
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || !selection.toString().trim()) return null;
+  const preview = app.querySelector(".thread-main .content-view");
+  if (!preview) return null;
+  const within = (node) =>
+    node && preview.contains(node.nodeType === Node.TEXT_NODE ? node.parentNode : node);
+  // 始点・終点の両方がプレビュー本文内にある選択だけを対象にする
+  return within(selection.anchorNode) && within(selection.focusNode) ? selection : null;
+}
+
+document.addEventListener("mouseup", (event) => {
+  if (quotePopupEl && quotePopupEl.contains(event.target)) return;
+  // mouseup 直後は selection が確定していないことがあるため1tick遅らせる
+  setTimeout(() => {
+    const selection = quotableSelection();
+    if (selection) {
+      showQuotePopup(selection);
+    } else {
+      hideQuotePopup();
+    }
+  }, 0);
+});
+
+document.addEventListener("mousedown", (event) => {
+  if (quotePopupEl && !quotePopupEl.contains(event.target)) hideQuotePopup();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") hideQuotePopup();
+});
+
+document.addEventListener("scroll", () => hideQuotePopup(), true);
 
 function boot() {
   if (window.mermaid) {

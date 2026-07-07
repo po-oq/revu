@@ -633,7 +633,7 @@ button:active { background: var(--surface-soft); }
   .comment:hover .comment-delete,
   .comment:focus-within .comment-delete { opacity: 1; }
 }
-.comment-body { white-space: pre-wrap; font-size: 13.5px; line-height: 1.55; }
+.comment-body { white-space: pre-wrap; font-size: 13.5px; line-height: 1.55; overflow-wrap: break-word; }
 .anchor {
   color: var(--accent-deep);
   background: var(--accent-soft);
@@ -863,4 +863,21 @@ button:active { background: var(--surface-soft); }
   .top-actions button { padding: 7px 10px; }
   .section-head { flex-wrap: wrap; }
   .mermaid-canvas { height: 320px; }
+}
+.quote-popup {
+  position: absolute;
+  z-index: 1000;
+}
+.quote-popup button {
+  border: 1px solid var(--text);
+  background: var(--text);
+  color: #fff;
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
+  font-size: 12.5px;
+  box-shadow: var(--shadow-md);
+  white-space: nowrap;
+}
+.quote-popup button:hover {
+  background: #2c2d33;
 }
