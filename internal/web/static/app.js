@@ -299,6 +299,28 @@ function ensureCommentDraft(threadId = state.selectedThreadId) {
   return state.drafts[key];
 }
 
+function formatQuote(text) {
+  const trimmed = String(text || "").replace(/\s+$/, "");
+  if (!trimmed) return "";
+  return trimmed.split("\n").map((line) => `> ${line}`).join("\n");
+}
+
+function appendQuoteToCommentDraft(threadId, text) {
+  const quote = formatQuote(text);
+  if (!quote) return;
+  const draft = ensureCommentDraft(threadId);
+  const base = draft.body.replace(/\s+$/, "");
+  draft.body = base ? `${base}\n\n${quote}\n\n` : `${quote}\n\n`;
+  state.commentsCollapsed = false;
+  renderApp();
+  const input = app.querySelector("[data-comment-body]");
+  if (input) {
+    input.focus();
+    input.selectionStart = input.selectionEnd = input.value.length;
+    input.scrollTop = input.scrollHeight;
+  }
+}
+
 function nextCommentNumber(threadId) {
   const comments = commentsForThread(threadId);
   return comments.length ? Math.max(...comments.map((comment) => comment.number)) + 1 : 1;
