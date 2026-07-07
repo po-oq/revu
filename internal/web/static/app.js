@@ -300,15 +300,16 @@ function ensureCommentDraft(threadId = state.selectedThreadId) {
 }
 
 function formatQuote(text) {
-  const trimmed = String(text || "").replace(/\s+$/, "");
+  const trimmed = String(text || "").replace(/\r\n?/g, "\n").replace(/\s+$/, "");
   if (!trimmed) return "";
   return trimmed.split("\n").map((line) => `> ${line}`).join("\n");
 }
 
-function appendQuoteToCommentDraft(threadId, text) {
+// 表示・入力同期はすべて選択中スレの下書きに紐づくため、threadId は引数に取らない
+function appendQuoteToCommentDraft(text) {
   const quote = formatQuote(text);
   if (!quote) return;
-  const draft = ensureCommentDraft(threadId);
+  const draft = ensureCommentDraft();
   const base = draft.body.replace(/\s+$/, "");
   draft.body = base ? `${base}\n\n${quote}\n\n` : `${quote}\n\n`;
   state.commentsCollapsed = false;
