@@ -1314,8 +1314,11 @@ function renderThreadBody(thread) {
 }
 
 function renderAnchoredText(body) {
-  const escaped = escapeHtml(body || "");
-  return escaped.replace(/&gt;&gt;(\d+)/g, '<span class="anchor">&gt;&gt;$1</span>');
+  return String(body || "").split("\n").map((line) => {
+    const escaped = escapeHtml(line).replace(/&gt;&gt;(\d+)/g, '<span class="anchor">&gt;&gt;$1</span>');
+    // 引用行は「> 」（スペース付き）始まり。「>>1」は「&gt;&gt;」になるので一致しない
+    return /^&gt; /.test(escaped) ? `<span class="quote-line">${escaped}</span>` : escaped;
+  }).join("\n");
 }
 
 function renderComments(thread) {
