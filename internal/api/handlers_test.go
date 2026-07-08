@@ -550,6 +550,67 @@ func TestThreadEditHistoryAndDiff(t *testing.T) {
 	}
 }
 
+func TestCommentAndThreadCarryVersionNumbers(t *testing.T) {
+	handler, _, _ := newTestHandler(t)
+
+	createRec := serveJSON(t, handler, http.MethodPost, "/api/threads", map[string]any{
+		"type": "markdown", "title": "versioned", "body": "# v1",
+		"deviceId": "dev_owner", "authorName": "owner",
+	})
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("create thread status = %d, body %s", createRec.Code, createRec.Body.String())
+	}
+	var created store.Thread
+	decodeJSON(t, createRec, &created)
+	if created.CurrentVersion != 1 {
+		t.Fatalf("created.CurrentVersion = %d, want 1", created.CurrentVersion)
+	}
+
+	c1Rec := serveJSON(t, handler, http.MethodPost, "/api/threads/"+created.ID+"/comments", map[string]any{
+		"body": "first", "deviceId": "dev_b", "authorName": "poo",
+	})
+	if c1Rec.Code != http.StatusCreated {
+		t.Fatalf("create comment status = %d, body %s", c1Rec.Code, c1Rec.Body.String())
+	}
+	var c1 store.Comment
+	decodeJSON(t, c1Rec, &c1)
+	if c1.ThreadVersion != 1 {
+		t.Fatalf("c1.ThreadVersion = %d, want 1", c1.ThreadVersion)
+	}
+
+	editRec := serveJSON(t, handler, http.MethodPut, "/api/threads/"+created.ID, map[string]any{
+		"title": "versioned", "body": "# v2", "deviceId": "dev_owner", "authorName": "owner",
+	})
+	if editRec.Code != http.StatusOK {
+		t.Fatalf("edit thread status = %d, body %s", editRec.Code, editRec.Body.String())
+	}
+
+	c2Rec := serveJSON(t, handler, http.MethodPost, "/api/threads/"+created.ID+"/comments", map[string]any{
+		"body": "second", "deviceId": "dev_b", "authorName": "poo",
+	})
+	if c2Rec.Code != http.StatusCreated {
+		t.Fatalf("create comment status = %d, body %s", c2Rec.Code, c2Rec.Body.String())
+	}
+	var c2 store.Comment
+	decodeJSON(t, c2Rec, &c2)
+	if c2.ThreadVersion != 2 {
+		t.Fatalf("c2.ThreadVersion = %d, want 2", c2.ThreadVersion)
+	}
+
+	getRec := serveJSON(t, handler, http.MethodGet, "/api/threads/"+created.ID, nil)
+	if getRec.Code != http.StatusOK {
+		t.Fatalf("get thread status = %d", getRec.Code)
+	}
+	var got store.Thread
+	decodeJSON(t, getRec, &got)
+	if got.CurrentVersion != 2 {
+		t.Fatalf("got.CurrentVersion = %d, want 2", got.CurrentVersion)
+	}
+	if len(got.Comments) != 2 || got.Comments[0].ThreadVersion != 1 || got.Comments[1].ThreadVersion != 2 {
+		t.Fatalf("comment versions mismatch: %+v", got.Comments)
+	}
+}
+
 func TestNoOpEditDoesNotAddVersion(t *testing.T) {
 	handler, _, _ := newTestHandler(t)
 	thread := createThread(t, handler, map[string]any{
