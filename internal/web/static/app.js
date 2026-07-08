@@ -857,7 +857,7 @@ async function saveThreadEdit() {
   }
 }
 
-async function goHistory(threadId) {
+async function goHistory(threadId, initialSeq = null) {
   state.view = "history";
   state.selectedThreadId = threadId;
   state.history = {
@@ -879,7 +879,10 @@ async function goHistory(threadId) {
     clearErrors();
     renderApp();
     if (state.history.versions.length > 1) {
-      await selectHistoryVersion(state.history.versions[0].seq);
+      const target = state.history.versions.some((version) => version.seq === initialSeq)
+        ? initialSeq
+        : state.history.versions[0].seq;
+      await selectHistoryVersion(target);
     }
   } catch (error) {
     if (state.view !== "history" || state.history?.threadId !== threadId) return;
@@ -1374,7 +1377,7 @@ function renderThreadView() {
           </div>
           <div class="top-actions">
             ${isOwn ? `<button data-action="edit-thread">編集</button>` : ""}
-            ${thread.updatedAt !== thread.createdAt ? `<button data-action="open-history">履歴</button>` : ""}
+            ${threadHasHistory(thread) ? `<button data-action="open-history">履歴</button>` : ""}
             ${canDeleteItem(thread) ? `<button class="danger-ghost" data-action="delete-thread">削除</button>` : ""}
             <button data-action="home">← 一覧へ</button>
           </div>
@@ -1731,6 +1734,15 @@ document.addEventListener("keydown", (event) => {
 
 document.addEventListener("scroll", () => hideQuotePopup(), true);
 
+function consumeHistoryDeepLink() {
+  const match = /^#history\/([^/]+)\/(\d+)$/.exec(location.hash || "");
+  if (!match) return null;
+  // ハッシュは起動パラメータとして一度だけ使う。本格ルーティングは
+  // 導入しないため、読んだらURLから消して以後のズレを防ぐ
+  history.replaceState(null, "", location.pathname + location.search);
+  return { threadId: decodeURIComponent(match[1]), seq: Number(match[2]) };
+}
+
 function boot() {
   if (window.mermaid) {
     mermaid.initialize({
@@ -1748,7 +1760,15 @@ function boot() {
       gantt: { useMaxWidth: false }
     });
   }
+  const deepLink = consumeHistoryDeepLink();
   loadState()
+    .then(() => {
+      if (!deepLink) return;
+      if (state.threads.some((thread) => thread.id === deepLink.threadId)) {
+        return goHistory(deepLink.threadId, deepLink.seq);
+      }
+      pushError("指定されたスレが見つかりませんでした。");
+    })
     .catch((error) => {
       pushError(apiErrorMessage(error, "スレッド一覧を読み込めませんでした。"));
     })
