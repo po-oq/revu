@@ -76,7 +76,8 @@ function normalizeCommentFromAPI(comment = {}) {
     author: comment.authorName || comment.author || "名無し",
     body: comment.body || "",
     attachments,
-    createdAt: comment.createdAt || nowIso()
+    createdAt: comment.createdAt || nowIso(),
+    threadVersion: Number(comment.threadVersion || 0)
   };
 }
 
@@ -97,6 +98,7 @@ function normalizeThreadFromAPI(thread = {}) {
     attachments,
     comments,
     commentCount: Number(thread.commentCount ?? comments.length),
+    currentVersion: Number(thread.currentVersion || 1),
     createdBy,
     updatedBy: latestActor,
     latestActor,
@@ -1322,6 +1324,20 @@ function renderAnchoredText(body) {
   }).join("\n");
 }
 
+function threadHasHistory(thread) {
+  return thread.updatedAt !== thread.createdAt;
+}
+
+function versionBadge(thread, seq) {
+  const version = Number(seq || 0);
+  if (!version) return "";
+  // リンク先ハッシュは起動時ディープリンク専用（boot時に一度だけ読まれる）
+  if (threadHasHistory(thread)) {
+    return `<a class="version-badge" href="#history/${encodeURIComponent(thread.id)}/${version}" target="_blank" rel="noopener" title="このバージョンの編集履歴を別タブで開く">v${version}</a>`;
+  }
+  return `<span class="version-badge">v${version}</span>`;
+}
+
 function renderComments(thread) {
   const comments = commentsForThread(thread.id);
   if (!comments.length) return `<div class="empty">まだコメントはありません。<br>下のフォームから最初のコメントをどうぞ。</div>`;
@@ -1331,7 +1347,7 @@ function renderComments(thread) {
     return `
     <article class="comment" data-author-color="${authorColorKey(comment.author)}" data-own="${isOwn}">
       <div class="comment-meta">
-        <span>#${comment.number} <span class="comment-author" data-author-color="${authorColorKey(comment.author)}">${escapeHtml(label)}</span> ・ ${timeLabel(comment.createdAt)}</span>
+        <span>#${comment.number} <span class="comment-author" data-author-color="${authorColorKey(comment.author)}">${escapeHtml(label)}</span> ・ ${timeLabel(comment.createdAt)} ${versionBadge(thread, comment.threadVersion)}</span>
         ${canDeleteItem(comment) ? `<button class="comment-delete" data-action="delete-comment" data-comment-id="${escapeHtml(comment.id)}" title="このコメントを削除">削除</button>` : ""}
       </div>
       <div class="comment-body">${renderAnchoredText(comment.body)}</div>
@@ -1353,7 +1369,7 @@ function renderThreadView() {
       <div class="thread-main">
         <div class="thread-header">
           <div>
-            <h1>${escapeHtml(thread.title)}</h1>
+            <h1>${escapeHtml(thread.title)} ${versionBadge(thread, thread.currentVersion)}</h1>
             <div class="muted"><span class="type-badge" data-type="${escapeHtml(thread.type)}">${escapeHtml(typeIcon(thread.type))}</span> ${escapeHtml(authorLabel(thread))} ・ ${timeLabel(thread.createdAt)}</div>
           </div>
           <div class="top-actions">
