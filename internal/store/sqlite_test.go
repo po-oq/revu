@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -716,4 +717,70 @@ func TestConcurrentIdenticalEditsCreateOneSnapshot(t *testing.T) {
 	if len(versions) != 2 {
 		t.Fatalf("versions after concurrent identical edits = %d, want 2 (one real transition)", len(versions))
 	}
+}
+
+func TestMigrationAddsThreadVersionColumnToLegacyDB(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "legacy.sqlite")
+
+	// thread_version カラムのない旧スキーマDBを用意する
+	legacy, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open legacy db: %v", err)
+	}
+	_, err = legacy.Exec(`
+CREATE TABLE comments (
+	id TEXT PRIMARY KEY,
+	thread_id TEXT NOT NULL,
+	number INTEGER NOT NULL,
+	body TEXT NOT NULL DEFAULT '',
+	owner_device_id TEXT NOT NULL,
+	author_name TEXT NOT NULL,
+	created_at TEXT NOT NULL,
+	deleted_at TEXT
+);`)
+	if err != nil {
+		t.Fatalf("create legacy schema: %v", err)
+	}
+	if err := legacy.Close(); err != nil {
+		t.Fatalf("close legacy db: %v", err)
+	}
+
+	// Open がマイグレーションでカラムを追加する
+	s, err := Open(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("Open error: %v", err)
+	}
+	hasColumn := func() bool {
+		rows, err := s.db.QueryContext(ctx, `PRAGMA table_info(comments)`)
+		if err != nil {
+			t.Fatalf("pragma error: %v", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var cid, notNull, pk int
+			var name, typ string
+			var dflt sql.NullString
+			if err := rows.Scan(&cid, &name, &typ, &notNull, &dflt, &pk); err != nil {
+				t.Fatalf("pragma scan error: %v", err)
+			}
+			if name == "thread_version" {
+				return true
+			}
+		}
+		return false
+	}
+	if !hasColumn() {
+		t.Fatalf("thread_version column not added by migration")
+	}
+	if err := s.Close(); err != nil {
+		t.Fatalf("close store: %v", err)
+	}
+
+	// 再オープンしても冪等（重複ALTERでエラーにならない）
+	s2, err := Open(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("reopen error: %v", err)
+	}
+	_ = s2.Close()
 }

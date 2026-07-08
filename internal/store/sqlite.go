@@ -85,6 +85,36 @@ CREATE TABLE IF NOT EXISTS thread_edits (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS thread_edits_thread_seq_idx ON thread_edits(thread_id, seq);
 `)
+	if err != nil {
+		return err
+	}
+	return s.ensureCommentThreadVersionColumn(ctx)
+}
+
+// ensureCommentThreadVersionColumn adds comments.thread_version for databases
+// created before the column existed. CREATE TABLE IF NOT EXISTS does not add
+// columns to existing tables, so this must run on every open (idempotent).
+func (s *Store) ensureCommentThreadVersionColumn(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `PRAGMA table_info(comments)`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid, notNull, pk int
+		var name, typ string
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &typ, &notNull, &dflt, &pk); err != nil {
+			return err
+		}
+		if name == "thread_version" {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `ALTER TABLE comments ADD COLUMN thread_version INTEGER`)
 	return err
 }
 
