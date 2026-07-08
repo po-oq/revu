@@ -45,6 +45,8 @@ Editing a thread saves the previous title and body. Threads that have been edite
 
 Note: history starts with the first edit made after this feature was introduced. Earlier edits were not recorded and cannot be recovered.
 
+The thread header shows the current version (for example `v3`), and each comment shows the version it was posted against. On threads that have been edited, these badges are links that open the edit history at that version in a new tab. Comments posted before this feature was introduced have no recorded version and show no badge.
+
 ## Offline UI Check
 
 The browser runtime libraries are embedded in the revu binary. After building, start the server and confirm the app does not request CDN or Google Fonts assets.
