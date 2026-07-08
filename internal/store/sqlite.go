@@ -362,6 +362,12 @@ func (s *Store) CreateComment(ctx context.Context, threadID string, in CreateCom
 	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(number), 0) + 1 FROM comments WHERE thread_id=?`, threadID).Scan(&next); err != nil {
 		return Comment{}, err
 	}
+	// コメント時点のスレバージョン。thread_edits は編集前スナップショットの
+	// 集まりなので、現在バージョン = 行数 + 1
+	var version int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*)+1 FROM thread_edits WHERE thread_id=?`, threadID).Scan(&version); err != nil {
+		return Comment{}, err
+	}
 	now := nowUTC()
 	comment := Comment{
 		ID:            newID("com"),
@@ -371,9 +377,10 @@ func (s *Store) CreateComment(ctx context.Context, threadID string, in CreateCom
 		OwnerDeviceID: in.OwnerDeviceID,
 		AuthorName:    in.AuthorName,
 		CreatedAt:     now,
+		ThreadVersion: version,
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO comments (id,thread_id,number,body,owner_device_id,author_name,created_at) VALUES (?,?,?,?,?,?,?)`,
-		comment.ID, comment.ThreadID, comment.Number, comment.Body, comment.OwnerDeviceID, comment.AuthorName, comment.CreatedAt.Format(time.RFC3339)); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO comments (id,thread_id,number,body,owner_device_id,author_name,created_at,thread_version) VALUES (?,?,?,?,?,?,?,?)`,
+		comment.ID, comment.ThreadID, comment.Number, comment.Body, comment.OwnerDeviceID, comment.AuthorName, comment.CreatedAt.Format(time.RFC3339), comment.ThreadVersion); err != nil {
 		return Comment{}, err
 	}
 	if err := attachExisting(ctx, tx, "comment", comment.ID, in.AttachmentIDs); err != nil {
@@ -386,7 +393,7 @@ func (s *Store) CreateComment(ctx context.Context, threadID string, in CreateCom
 }
 
 func (s *Store) ListComments(ctx context.Context, threadID string) ([]Comment, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,thread_id,number,body,owner_device_id,author_name,created_at FROM comments WHERE thread_id=? AND deleted_at IS NULL ORDER BY number ASC`, threadID)
+	rows, err := s.db.QueryContext(ctx, `SELECT id,thread_id,number,body,owner_device_id,author_name,created_at,thread_version FROM comments WHERE thread_id=? AND deleted_at IS NULL ORDER BY number ASC`, threadID)
 	if err != nil {
 		return nil, err
 	}
@@ -394,7 +401,8 @@ func (s *Store) ListComments(ctx context.Context, threadID string) ([]Comment, e
 	for rows.Next() {
 		var c Comment
 		var created string
-		if err := rows.Scan(&c.ID, &c.ThreadID, &c.Number, &c.Body, &c.OwnerDeviceID, &c.AuthorName, &created); err != nil {
+		var version sql.NullInt64
+		if err := rows.Scan(&c.ID, &c.ThreadID, &c.Number, &c.Body, &c.OwnerDeviceID, &c.AuthorName, &created, &version); err != nil {
 			_ = rows.Close()
 			return nil, err
 		}
@@ -404,6 +412,7 @@ func (s *Store) ListComments(ctx context.Context, threadID string) ([]Comment, e
 			return nil, err
 		}
 		c.CreatedAt = parsed
+		c.ThreadVersion = int(version.Int64)
 		out = append(out, c)
 	}
 	if err := rows.Close(); err != nil {
@@ -571,8 +580,9 @@ func scanThread(row threadScanner) (Thread, error) {
 func (s *Store) getComment(ctx context.Context, id string) (Comment, error) {
 	var comment Comment
 	var created string
-	err := s.db.QueryRowContext(ctx, `SELECT id,thread_id,number,body,owner_device_id,author_name,created_at FROM comments WHERE id=? AND deleted_at IS NULL`, id).
-		Scan(&comment.ID, &comment.ThreadID, &comment.Number, &comment.Body, &comment.OwnerDeviceID, &comment.AuthorName, &created)
+	var version sql.NullInt64
+	err := s.db.QueryRowContext(ctx, `SELECT id,thread_id,number,body,owner_device_id,author_name,created_at,thread_version FROM comments WHERE id=? AND deleted_at IS NULL`, id).
+		Scan(&comment.ID, &comment.ThreadID, &comment.Number, &comment.Body, &comment.OwnerDeviceID, &comment.AuthorName, &created, &version)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Comment{}, ErrNotFound
 	}
@@ -584,6 +594,7 @@ func (s *Store) getComment(ctx context.Context, id string) (Comment, error) {
 		return Comment{}, err
 	}
 	comment.CreatedAt = createdAt
+	comment.ThreadVersion = int(version.Int64)
 	attachments, err := s.ListAttachments(ctx, "comment", comment.ID)
 	if err != nil {
 		return Comment{}, err

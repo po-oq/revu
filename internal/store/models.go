@@ -44,6 +44,7 @@ type Comment struct {
 	OwnerDeviceID string       `json:"ownerDeviceId"`
 	AuthorName    string       `json:"authorName"`
 	CreatedAt     time.Time    `json:"createdAt"`
+	ThreadVersion int          `json:"threadVersion,omitempty"`
 	Attachments   []Attachment `json:"attachments,omitempty"`
 }
 

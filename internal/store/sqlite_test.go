@@ -784,3 +784,63 @@ CREATE TABLE comments (
 	}
 	_ = s2.Close()
 }
+
+func TestCommentRecordsThreadVersion(t *testing.T) {
+	ctx := context.Background()
+	s := openTestStore(t)
+	thread, err := s.CreateThread(ctx, CreateThreadInput{
+		Type:          TypeMarkdown,
+		Title:         "versioned",
+		Body:          "# v1",
+		OwnerDeviceID: "dev_a",
+		AuthorName:    "wata",
+	})
+	if err != nil {
+		t.Fatalf("CreateThread error: %v", err)
+	}
+
+	// 未編集スレ（v1）へのコメントは threadVersion=1
+	c1, err := s.CreateComment(ctx, thread.ID, CreateCommentInput{
+		Body: "first", OwnerDeviceID: "dev_b", AuthorName: "poo",
+	})
+	if err != nil {
+		t.Fatalf("CreateComment error: %v", err)
+	}
+	if c1.ThreadVersion != 1 {
+		t.Fatalf("c1.ThreadVersion = %d, want 1", c1.ThreadVersion)
+	}
+
+	// 編集後（v2）のコメントは threadVersion=2
+	if _, err := s.UpdateThread(ctx, thread.ID, "dev_a", UpdateThreadInput{
+		Title: "versioned v2", Body: "# v2", AuthorName: "wata",
+	}); err != nil {
+		t.Fatalf("UpdateThread error: %v", err)
+	}
+	c2, err := s.CreateComment(ctx, thread.ID, CreateCommentInput{
+		Body: "second", OwnerDeviceID: "dev_b", AuthorName: "poo",
+	})
+	if err != nil {
+		t.Fatalf("CreateComment error: %v", err)
+	}
+	if c2.ThreadVersion != 2 {
+		t.Fatalf("c2.ThreadVersion = %d, want 2", c2.ThreadVersion)
+	}
+
+	// 機能導入前のコメント（thread_version が NULL）は 0 で返る
+	if _, err := s.db.ExecContext(ctx, `UPDATE comments SET thread_version=NULL WHERE id=?`, c1.ID); err != nil {
+		t.Fatalf("null out version: %v", err)
+	}
+	comments, err := s.ListComments(ctx, thread.ID)
+	if err != nil {
+		t.Fatalf("ListComments error: %v", err)
+	}
+	if len(comments) != 2 {
+		t.Fatalf("comment count = %d, want 2", len(comments))
+	}
+	if comments[0].ThreadVersion != 0 {
+		t.Fatalf("legacy comment ThreadVersion = %d, want 0", comments[0].ThreadVersion)
+	}
+	if comments[1].ThreadVersion != 2 {
+		t.Fatalf("comments[1].ThreadVersion = %d, want 2", comments[1].ThreadVersion)
+	}
+}
