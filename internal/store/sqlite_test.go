@@ -844,3 +844,44 @@ func TestCommentRecordsThreadVersion(t *testing.T) {
 		t.Fatalf("comments[1].ThreadVersion = %d, want 2", comments[1].ThreadVersion)
 	}
 }
+
+func TestThreadCurrentVersionTracksEdits(t *testing.T) {
+	ctx := context.Background()
+	s := openTestStore(t)
+	thread, err := s.CreateThread(ctx, CreateThreadInput{
+		Type:          TypeText,
+		Title:         "cv",
+		Body:          "body v1",
+		OwnerDeviceID: "dev_a",
+		AuthorName:    "wata",
+	})
+	if err != nil {
+		t.Fatalf("CreateThread error: %v", err)
+	}
+	got, err := s.GetThread(ctx, thread.ID)
+	if err != nil {
+		t.Fatalf("GetThread error: %v", err)
+	}
+	if got.CurrentVersion != 1 {
+		t.Fatalf("CurrentVersion = %d, want 1", got.CurrentVersion)
+	}
+	if _, err := s.UpdateThread(ctx, thread.ID, "dev_a", UpdateThreadInput{
+		Title: "cv", Body: "body v2", AuthorName: "wata",
+	}); err != nil {
+		t.Fatalf("UpdateThread error: %v", err)
+	}
+	got, err = s.GetThread(ctx, thread.ID)
+	if err != nil {
+		t.Fatalf("GetThread error: %v", err)
+	}
+	if got.CurrentVersion != 2 {
+		t.Fatalf("CurrentVersion after edit = %d, want 2", got.CurrentVersion)
+	}
+	list, err := s.ListThreads(ctx)
+	if err != nil {
+		t.Fatalf("ListThreads error: %v", err)
+	}
+	if len(list) != 1 || list[0].CurrentVersion != 2 {
+		t.Fatalf("list CurrentVersion mismatch: %+v", list)
+	}
+}

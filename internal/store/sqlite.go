@@ -186,7 +186,8 @@ func (s *Store) ListThreads(ctx context.Context) ([]Thread, error) {
 SELECT t.id,t.type,t.title,t.body,t.owner_device_id,t.author_name,t.created_at,t.updated_at,
        COUNT(c.id) AS comment_count,
        COALESCE((SELECT c2.author_name FROM comments c2 WHERE c2.thread_id=t.id AND c2.deleted_at IS NULL ORDER BY c2.number DESC LIMIT 1), t.author_name) AS latest_actor,
-       COALESCE((SELECT c3.created_at FROM comments c3 WHERE c3.thread_id=t.id AND c3.deleted_at IS NULL ORDER BY c3.number DESC LIMIT 1), t.updated_at) AS latest_at
+       COALESCE((SELECT c3.created_at FROM comments c3 WHERE c3.thread_id=t.id AND c3.deleted_at IS NULL ORDER BY c3.number DESC LIMIT 1), t.updated_at) AS latest_at,
+       (SELECT COUNT(*)+1 FROM thread_edits e WHERE e.thread_id=t.id) AS current_version
 FROM threads t
 LEFT JOIN comments c ON c.thread_id=t.id AND c.deleted_at IS NULL
 WHERE t.deleted_at IS NULL
@@ -212,7 +213,8 @@ func (s *Store) GetThread(ctx context.Context, id string) (Thread, error) {
 SELECT t.id,t.type,t.title,t.body,t.owner_device_id,t.author_name,t.created_at,t.updated_at,
        (SELECT COUNT(*) FROM comments c WHERE c.thread_id=t.id AND c.deleted_at IS NULL),
        COALESCE((SELECT c2.author_name FROM comments c2 WHERE c2.thread_id=t.id AND c2.deleted_at IS NULL ORDER BY c2.number DESC LIMIT 1), t.author_name),
-       COALESCE((SELECT c3.created_at FROM comments c3 WHERE c3.thread_id=t.id AND c3.deleted_at IS NULL ORDER BY c3.number DESC LIMIT 1), t.updated_at)
+       COALESCE((SELECT c3.created_at FROM comments c3 WHERE c3.thread_id=t.id AND c3.deleted_at IS NULL ORDER BY c3.number DESC LIMIT 1), t.updated_at),
+       (SELECT COUNT(*)+1 FROM thread_edits e WHERE e.thread_id=t.id)
 FROM threads t
 WHERE t.id=? AND t.deleted_at IS NULL`, id)
 	thread, err := scanThread(row)
@@ -555,7 +557,7 @@ func scanThread(row threadScanner) (Thread, error) {
 	var created string
 	var updated string
 	var latest string
-	if err := row.Scan(&thread.ID, &typ, &thread.Title, &thread.Body, &thread.OwnerDeviceID, &thread.AuthorName, &created, &updated, &thread.CommentCount, &thread.LatestActor, &latest); err != nil {
+	if err := row.Scan(&thread.ID, &typ, &thread.Title, &thread.Body, &thread.OwnerDeviceID, &thread.AuthorName, &created, &updated, &thread.CommentCount, &thread.LatestActor, &latest, &thread.CurrentVersion); err != nil {
 		return Thread{}, err
 	}
 	createdAt, err := time.Parse(time.RFC3339, created)
