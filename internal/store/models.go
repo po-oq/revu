@@ -21,19 +21,20 @@ var (
 )
 
 type Thread struct {
-	ID            string       `json:"id"`
-	Type          ThreadType   `json:"type"`
-	Title         string       `json:"title"`
-	Body          string       `json:"body"`
-	OwnerDeviceID string       `json:"ownerDeviceId"`
-	AuthorName    string       `json:"authorName"`
-	CreatedAt     time.Time    `json:"createdAt"`
-	UpdatedAt     time.Time    `json:"updatedAt"`
-	CommentCount  int          `json:"commentCount"`
-	LatestActor   string       `json:"latestActor"`
-	LatestAt      time.Time    `json:"latestAt"`
-	Attachments   []Attachment `json:"attachments,omitempty"`
-	Comments      []Comment    `json:"comments,omitempty"`
+	ID             string       `json:"id"`
+	Type           ThreadType   `json:"type"`
+	Title          string       `json:"title"`
+	Body           string       `json:"body"`
+	OwnerDeviceID  string       `json:"ownerDeviceId"`
+	AuthorName     string       `json:"authorName"`
+	CreatedAt      time.Time    `json:"createdAt"`
+	UpdatedAt      time.Time    `json:"updatedAt"`
+	CurrentVersion int          `json:"currentVersion"`
+	CommentCount   int          `json:"commentCount"`
+	LatestActor    string       `json:"latestActor"`
+	LatestAt       time.Time    `json:"latestAt"`
+	Attachments    []Attachment `json:"attachments,omitempty"`
+	Comments       []Comment    `json:"comments,omitempty"`
 }
 
 type Comment struct {
@@ -44,6 +45,7 @@ type Comment struct {
 	OwnerDeviceID string       `json:"ownerDeviceId"`
 	AuthorName    string       `json:"authorName"`
 	CreatedAt     time.Time    `json:"createdAt"`
+	ThreadVersion int          `json:"threadVersion,omitempty"`
 	Attachments   []Attachment `json:"attachments,omitempty"`
 }
 

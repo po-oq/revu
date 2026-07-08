@@ -85,6 +85,36 @@ CREATE TABLE IF NOT EXISTS thread_edits (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS thread_edits_thread_seq_idx ON thread_edits(thread_id, seq);
 `)
+	if err != nil {
+		return err
+	}
+	return s.ensureCommentThreadVersionColumn(ctx)
+}
+
+// ensureCommentThreadVersionColumn adds comments.thread_version for databases
+// created before the column existed. CREATE TABLE IF NOT EXISTS does not add
+// columns to existing tables, so this must run on every open (idempotent).
+func (s *Store) ensureCommentThreadVersionColumn(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `PRAGMA table_info(comments)`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid, notNull, pk int
+		var name, typ string
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &typ, &notNull, &dflt, &pk); err != nil {
+			return err
+		}
+		if name == "thread_version" {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `ALTER TABLE comments ADD COLUMN thread_version INTEGER`)
 	return err
 }
 
@@ -156,7 +186,8 @@ func (s *Store) ListThreads(ctx context.Context) ([]Thread, error) {
 SELECT t.id,t.type,t.title,t.body,t.owner_device_id,t.author_name,t.created_at,t.updated_at,
        COUNT(c.id) AS comment_count,
        COALESCE((SELECT c2.author_name FROM comments c2 WHERE c2.thread_id=t.id AND c2.deleted_at IS NULL ORDER BY c2.number DESC LIMIT 1), t.author_name) AS latest_actor,
-       COALESCE((SELECT c3.created_at FROM comments c3 WHERE c3.thread_id=t.id AND c3.deleted_at IS NULL ORDER BY c3.number DESC LIMIT 1), t.updated_at) AS latest_at
+       COALESCE((SELECT c3.created_at FROM comments c3 WHERE c3.thread_id=t.id AND c3.deleted_at IS NULL ORDER BY c3.number DESC LIMIT 1), t.updated_at) AS latest_at,
+       (SELECT COUNT(*)+1 FROM thread_edits e WHERE e.thread_id=t.id) AS current_version
 FROM threads t
 LEFT JOIN comments c ON c.thread_id=t.id AND c.deleted_at IS NULL
 WHERE t.deleted_at IS NULL
@@ -182,7 +213,8 @@ func (s *Store) GetThread(ctx context.Context, id string) (Thread, error) {
 SELECT t.id,t.type,t.title,t.body,t.owner_device_id,t.author_name,t.created_at,t.updated_at,
        (SELECT COUNT(*) FROM comments c WHERE c.thread_id=t.id AND c.deleted_at IS NULL),
        COALESCE((SELECT c2.author_name FROM comments c2 WHERE c2.thread_id=t.id AND c2.deleted_at IS NULL ORDER BY c2.number DESC LIMIT 1), t.author_name),
-       COALESCE((SELECT c3.created_at FROM comments c3 WHERE c3.thread_id=t.id AND c3.deleted_at IS NULL ORDER BY c3.number DESC LIMIT 1), t.updated_at)
+       COALESCE((SELECT c3.created_at FROM comments c3 WHERE c3.thread_id=t.id AND c3.deleted_at IS NULL ORDER BY c3.number DESC LIMIT 1), t.updated_at),
+       (SELECT COUNT(*)+1 FROM thread_edits e WHERE e.thread_id=t.id)
 FROM threads t
 WHERE t.id=? AND t.deleted_at IS NULL`, id)
 	thread, err := scanThread(row)
@@ -332,6 +364,12 @@ func (s *Store) CreateComment(ctx context.Context, threadID string, in CreateCom
 	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(number), 0) + 1 FROM comments WHERE thread_id=?`, threadID).Scan(&next); err != nil {
 		return Comment{}, err
 	}
+	// コメント時点のスレバージョン。thread_edits は編集前スナップショットの
+	// 集まりなので、現在バージョン = 行数 + 1
+	var version int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*)+1 FROM thread_edits WHERE thread_id=?`, threadID).Scan(&version); err != nil {
+		return Comment{}, err
+	}
 	now := nowUTC()
 	comment := Comment{
 		ID:            newID("com"),
@@ -341,9 +379,10 @@ func (s *Store) CreateComment(ctx context.Context, threadID string, in CreateCom
 		OwnerDeviceID: in.OwnerDeviceID,
 		AuthorName:    in.AuthorName,
 		CreatedAt:     now,
+		ThreadVersion: version,
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO comments (id,thread_id,number,body,owner_device_id,author_name,created_at) VALUES (?,?,?,?,?,?,?)`,
-		comment.ID, comment.ThreadID, comment.Number, comment.Body, comment.OwnerDeviceID, comment.AuthorName, comment.CreatedAt.Format(time.RFC3339)); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO comments (id,thread_id,number,body,owner_device_id,author_name,created_at,thread_version) VALUES (?,?,?,?,?,?,?,?)`,
+		comment.ID, comment.ThreadID, comment.Number, comment.Body, comment.OwnerDeviceID, comment.AuthorName, comment.CreatedAt.Format(time.RFC3339), comment.ThreadVersion); err != nil {
 		return Comment{}, err
 	}
 	if err := attachExisting(ctx, tx, "comment", comment.ID, in.AttachmentIDs); err != nil {
@@ -356,7 +395,7 @@ func (s *Store) CreateComment(ctx context.Context, threadID string, in CreateCom
 }
 
 func (s *Store) ListComments(ctx context.Context, threadID string) ([]Comment, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,thread_id,number,body,owner_device_id,author_name,created_at FROM comments WHERE thread_id=? AND deleted_at IS NULL ORDER BY number ASC`, threadID)
+	rows, err := s.db.QueryContext(ctx, `SELECT id,thread_id,number,body,owner_device_id,author_name,created_at,thread_version FROM comments WHERE thread_id=? AND deleted_at IS NULL ORDER BY number ASC`, threadID)
 	if err != nil {
 		return nil, err
 	}
@@ -364,7 +403,8 @@ func (s *Store) ListComments(ctx context.Context, threadID string) ([]Comment, e
 	for rows.Next() {
 		var c Comment
 		var created string
-		if err := rows.Scan(&c.ID, &c.ThreadID, &c.Number, &c.Body, &c.OwnerDeviceID, &c.AuthorName, &created); err != nil {
+		var version sql.NullInt64
+		if err := rows.Scan(&c.ID, &c.ThreadID, &c.Number, &c.Body, &c.OwnerDeviceID, &c.AuthorName, &created, &version); err != nil {
 			_ = rows.Close()
 			return nil, err
 		}
@@ -374,6 +414,7 @@ func (s *Store) ListComments(ctx context.Context, threadID string) ([]Comment, e
 			return nil, err
 		}
 		c.CreatedAt = parsed
+		c.ThreadVersion = int(version.Int64)
 		out = append(out, c)
 	}
 	if err := rows.Close(); err != nil {
@@ -516,7 +557,7 @@ func scanThread(row threadScanner) (Thread, error) {
 	var created string
 	var updated string
 	var latest string
-	if err := row.Scan(&thread.ID, &typ, &thread.Title, &thread.Body, &thread.OwnerDeviceID, &thread.AuthorName, &created, &updated, &thread.CommentCount, &thread.LatestActor, &latest); err != nil {
+	if err := row.Scan(&thread.ID, &typ, &thread.Title, &thread.Body, &thread.OwnerDeviceID, &thread.AuthorName, &created, &updated, &thread.CommentCount, &thread.LatestActor, &latest, &thread.CurrentVersion); err != nil {
 		return Thread{}, err
 	}
 	createdAt, err := time.Parse(time.RFC3339, created)
@@ -541,8 +582,9 @@ func scanThread(row threadScanner) (Thread, error) {
 func (s *Store) getComment(ctx context.Context, id string) (Comment, error) {
 	var comment Comment
 	var created string
-	err := s.db.QueryRowContext(ctx, `SELECT id,thread_id,number,body,owner_device_id,author_name,created_at FROM comments WHERE id=? AND deleted_at IS NULL`, id).
-		Scan(&comment.ID, &comment.ThreadID, &comment.Number, &comment.Body, &comment.OwnerDeviceID, &comment.AuthorName, &created)
+	var version sql.NullInt64
+	err := s.db.QueryRowContext(ctx, `SELECT id,thread_id,number,body,owner_device_id,author_name,created_at,thread_version FROM comments WHERE id=? AND deleted_at IS NULL`, id).
+		Scan(&comment.ID, &comment.ThreadID, &comment.Number, &comment.Body, &comment.OwnerDeviceID, &comment.AuthorName, &created, &version)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Comment{}, ErrNotFound
 	}
@@ -554,6 +596,7 @@ func (s *Store) getComment(ctx context.Context, id string) (Comment, error) {
 		return Comment{}, err
 	}
 	comment.CreatedAt = createdAt
+	comment.ThreadVersion = int(version.Int64)
 	attachments, err := s.ListAttachments(ctx, "comment", comment.ID)
 	if err != nil {
 		return Comment{}, err

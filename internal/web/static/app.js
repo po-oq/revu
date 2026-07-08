@@ -76,7 +76,8 @@ function normalizeCommentFromAPI(comment = {}) {
     author: comment.authorName || comment.author || "名無し",
     body: comment.body || "",
     attachments,
-    createdAt: comment.createdAt || nowIso()
+    createdAt: comment.createdAt || nowIso(),
+    threadVersion: Number(comment.threadVersion || 0)
   };
 }
 
@@ -97,6 +98,7 @@ function normalizeThreadFromAPI(thread = {}) {
     attachments,
     comments,
     commentCount: Number(thread.commentCount ?? comments.length),
+    currentVersion: Number(thread.currentVersion || 1),
     createdBy,
     updatedBy: latestActor,
     latestActor,
@@ -855,7 +857,7 @@ async function saveThreadEdit() {
   }
 }
 
-async function goHistory(threadId) {
+async function goHistory(threadId, initialSeq = null) {
   state.view = "history";
   state.selectedThreadId = threadId;
   state.history = {
@@ -877,7 +879,10 @@ async function goHistory(threadId) {
     clearErrors();
     renderApp();
     if (state.history.versions.length > 1) {
-      await selectHistoryVersion(state.history.versions[0].seq);
+      const target = state.history.versions.some((version) => version.seq === initialSeq)
+        ? initialSeq
+        : state.history.versions[0].seq;
+      await selectHistoryVersion(target);
     }
   } catch (error) {
     if (state.view !== "history" || state.history?.threadId !== threadId) return;
@@ -1322,6 +1327,20 @@ function renderAnchoredText(body) {
   }).join("\n");
 }
 
+function threadHasHistory(thread) {
+  return thread.updatedAt !== thread.createdAt;
+}
+
+function versionBadge(thread, seq) {
+  const version = Number(seq || 0);
+  if (!version) return "";
+  // リンク先ハッシュは起動時ディープリンク専用（boot時に一度だけ読まれる）
+  if (threadHasHistory(thread)) {
+    return `<a class="version-badge" href="#history/${encodeURIComponent(thread.id)}/${version}" target="_blank" rel="noopener" title="このバージョンの編集履歴を別タブで開く">v${version}</a>`;
+  }
+  return `<span class="version-badge">v${version}</span>`;
+}
+
 function renderComments(thread) {
   const comments = commentsForThread(thread.id);
   if (!comments.length) return `<div class="empty">まだコメントはありません。<br>下のフォームから最初のコメントをどうぞ。</div>`;
@@ -1331,7 +1350,7 @@ function renderComments(thread) {
     return `
     <article class="comment" data-author-color="${authorColorKey(comment.author)}" data-own="${isOwn}">
       <div class="comment-meta">
-        <span>#${comment.number} <span class="comment-author" data-author-color="${authorColorKey(comment.author)}">${escapeHtml(label)}</span> ・ ${timeLabel(comment.createdAt)}</span>
+        <span>#${comment.number} <span class="comment-author" data-author-color="${authorColorKey(comment.author)}">${escapeHtml(label)}</span> ・ ${timeLabel(comment.createdAt)} ${versionBadge(thread, comment.threadVersion)}</span>
         ${canDeleteItem(comment) ? `<button class="comment-delete" data-action="delete-comment" data-comment-id="${escapeHtml(comment.id)}" title="このコメントを削除">削除</button>` : ""}
       </div>
       <div class="comment-body">${renderAnchoredText(comment.body)}</div>
@@ -1353,12 +1372,12 @@ function renderThreadView() {
       <div class="thread-main">
         <div class="thread-header">
           <div>
-            <h1>${escapeHtml(thread.title)}</h1>
+            <h1>${escapeHtml(thread.title)} ${versionBadge(thread, thread.currentVersion)}</h1>
             <div class="muted"><span class="type-badge" data-type="${escapeHtml(thread.type)}">${escapeHtml(typeIcon(thread.type))}</span> ${escapeHtml(authorLabel(thread))} ・ ${timeLabel(thread.createdAt)}</div>
           </div>
           <div class="top-actions">
             ${isOwn ? `<button data-action="edit-thread">編集</button>` : ""}
-            ${thread.updatedAt !== thread.createdAt ? `<button data-action="open-history">履歴</button>` : ""}
+            ${threadHasHistory(thread) ? `<button data-action="open-history">履歴</button>` : ""}
             ${canDeleteItem(thread) ? `<button class="danger-ghost" data-action="delete-thread">削除</button>` : ""}
             <button data-action="home">← 一覧へ</button>
           </div>
@@ -1715,6 +1734,21 @@ document.addEventListener("keydown", (event) => {
 
 document.addEventListener("scroll", () => hideQuotePopup(), true);
 
+function consumeHistoryDeepLink() {
+  const match = /^#history\/([^/]+)\/(\d+)$/.exec(location.hash || "");
+  if (!match) return null;
+  let threadId;
+  try {
+    threadId = decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+  // ハッシュは起動パラメータとして一度だけ使う。本格ルーティングは
+  // 導入しないため、読んだらURLから消して以後のズレを防ぐ
+  history.replaceState(null, "", location.pathname + location.search);
+  return { threadId, seq: Number(match[2]) };
+}
+
 function boot() {
   if (window.mermaid) {
     mermaid.initialize({
@@ -1732,7 +1766,15 @@ function boot() {
       gantt: { useMaxWidth: false }
     });
   }
+  const deepLink = consumeHistoryDeepLink();
   loadState()
+    .then(() => {
+      if (!deepLink) return;
+      if (state.threads.some((thread) => thread.id === deepLink.threadId)) {
+        return goHistory(deepLink.threadId, deepLink.seq);
+      }
+      pushError("指定されたスレが見つかりませんでした。");
+    })
     .catch((error) => {
       pushError(apiErrorMessage(error, "スレッド一覧を読み込めませんでした。"));
     })

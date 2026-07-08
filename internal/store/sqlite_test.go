@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -715,5 +716,172 @@ func TestConcurrentIdenticalEditsCreateOneSnapshot(t *testing.T) {
 	}
 	if len(versions) != 2 {
 		t.Fatalf("versions after concurrent identical edits = %d, want 2 (one real transition)", len(versions))
+	}
+}
+
+func TestMigrationAddsThreadVersionColumnToLegacyDB(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "legacy.sqlite")
+
+	// thread_version カラムのない旧スキーマDBを用意する
+	legacy, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open legacy db: %v", err)
+	}
+	_, err = legacy.Exec(`
+CREATE TABLE comments (
+	id TEXT PRIMARY KEY,
+	thread_id TEXT NOT NULL,
+	number INTEGER NOT NULL,
+	body TEXT NOT NULL DEFAULT '',
+	owner_device_id TEXT NOT NULL,
+	author_name TEXT NOT NULL,
+	created_at TEXT NOT NULL,
+	deleted_at TEXT
+);`)
+	if err != nil {
+		t.Fatalf("create legacy schema: %v", err)
+	}
+	if err := legacy.Close(); err != nil {
+		t.Fatalf("close legacy db: %v", err)
+	}
+
+	// Open がマイグレーションでカラムを追加する
+	s, err := Open(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("Open error: %v", err)
+	}
+	hasColumn := func() bool {
+		rows, err := s.db.QueryContext(ctx, `PRAGMA table_info(comments)`)
+		if err != nil {
+			t.Fatalf("pragma error: %v", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var cid, notNull, pk int
+			var name, typ string
+			var dflt sql.NullString
+			if err := rows.Scan(&cid, &name, &typ, &notNull, &dflt, &pk); err != nil {
+				t.Fatalf("pragma scan error: %v", err)
+			}
+			if name == "thread_version" {
+				return true
+			}
+		}
+		return false
+	}
+	if !hasColumn() {
+		t.Fatalf("thread_version column not added by migration")
+	}
+	if err := s.Close(); err != nil {
+		t.Fatalf("close store: %v", err)
+	}
+
+	// 再オープンしても冪等（重複ALTERでエラーにならない）
+	s2, err := Open(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("reopen error: %v", err)
+	}
+	_ = s2.Close()
+}
+
+func TestCommentRecordsThreadVersion(t *testing.T) {
+	ctx := context.Background()
+	s := openTestStore(t)
+	thread, err := s.CreateThread(ctx, CreateThreadInput{
+		Type:          TypeMarkdown,
+		Title:         "versioned",
+		Body:          "# v1",
+		OwnerDeviceID: "dev_a",
+		AuthorName:    "wata",
+	})
+	if err != nil {
+		t.Fatalf("CreateThread error: %v", err)
+	}
+
+	// 未編集スレ（v1）へのコメントは threadVersion=1
+	c1, err := s.CreateComment(ctx, thread.ID, CreateCommentInput{
+		Body: "first", OwnerDeviceID: "dev_b", AuthorName: "poo",
+	})
+	if err != nil {
+		t.Fatalf("CreateComment error: %v", err)
+	}
+	if c1.ThreadVersion != 1 {
+		t.Fatalf("c1.ThreadVersion = %d, want 1", c1.ThreadVersion)
+	}
+
+	// 編集後（v2）のコメントは threadVersion=2
+	if _, err := s.UpdateThread(ctx, thread.ID, "dev_a", UpdateThreadInput{
+		Title: "versioned v2", Body: "# v2", AuthorName: "wata",
+	}); err != nil {
+		t.Fatalf("UpdateThread error: %v", err)
+	}
+	c2, err := s.CreateComment(ctx, thread.ID, CreateCommentInput{
+		Body: "second", OwnerDeviceID: "dev_b", AuthorName: "poo",
+	})
+	if err != nil {
+		t.Fatalf("CreateComment error: %v", err)
+	}
+	if c2.ThreadVersion != 2 {
+		t.Fatalf("c2.ThreadVersion = %d, want 2", c2.ThreadVersion)
+	}
+
+	// 機能導入前のコメント（thread_version が NULL）は 0 で返る
+	if _, err := s.db.ExecContext(ctx, `UPDATE comments SET thread_version=NULL WHERE id=?`, c1.ID); err != nil {
+		t.Fatalf("null out version: %v", err)
+	}
+	comments, err := s.ListComments(ctx, thread.ID)
+	if err != nil {
+		t.Fatalf("ListComments error: %v", err)
+	}
+	if len(comments) != 2 {
+		t.Fatalf("comment count = %d, want 2", len(comments))
+	}
+	if comments[0].ThreadVersion != 0 {
+		t.Fatalf("legacy comment ThreadVersion = %d, want 0", comments[0].ThreadVersion)
+	}
+	if comments[1].ThreadVersion != 2 {
+		t.Fatalf("comments[1].ThreadVersion = %d, want 2", comments[1].ThreadVersion)
+	}
+}
+
+func TestThreadCurrentVersionTracksEdits(t *testing.T) {
+	ctx := context.Background()
+	s := openTestStore(t)
+	thread, err := s.CreateThread(ctx, CreateThreadInput{
+		Type:          TypeText,
+		Title:         "cv",
+		Body:          "body v1",
+		OwnerDeviceID: "dev_a",
+		AuthorName:    "wata",
+	})
+	if err != nil {
+		t.Fatalf("CreateThread error: %v", err)
+	}
+	got, err := s.GetThread(ctx, thread.ID)
+	if err != nil {
+		t.Fatalf("GetThread error: %v", err)
+	}
+	if got.CurrentVersion != 1 {
+		t.Fatalf("CurrentVersion = %d, want 1", got.CurrentVersion)
+	}
+	if _, err := s.UpdateThread(ctx, thread.ID, "dev_a", UpdateThreadInput{
+		Title: "cv", Body: "body v2", AuthorName: "wata",
+	}); err != nil {
+		t.Fatalf("UpdateThread error: %v", err)
+	}
+	got, err = s.GetThread(ctx, thread.ID)
+	if err != nil {
+		t.Fatalf("GetThread error: %v", err)
+	}
+	if got.CurrentVersion != 2 {
+		t.Fatalf("CurrentVersion after edit = %d, want 2", got.CurrentVersion)
+	}
+	list, err := s.ListThreads(ctx)
+	if err != nil {
+		t.Fatalf("ListThreads error: %v", err)
+	}
+	if len(list) != 1 || list[0].CurrentVersion != 2 {
+		t.Fatalf("list CurrentVersion mismatch: %+v", list)
 	}
 }
