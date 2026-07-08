@@ -1737,10 +1737,16 @@ document.addEventListener("scroll", () => hideQuotePopup(), true);
 function consumeHistoryDeepLink() {
   const match = /^#history\/([^/]+)\/(\d+)$/.exec(location.hash || "");
   if (!match) return null;
+  let threadId;
+  try {
+    threadId = decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
   // ハッシュは起動パラメータとして一度だけ使う。本格ルーティングは
   // 導入しないため、読んだらURLから消して以後のズレを防ぐ
   history.replaceState(null, "", location.pathname + location.search);
-  return { threadId: decodeURIComponent(match[1]), seq: Number(match[2]) };
+  return { threadId, seq: Number(match[2]) };
 }
 
 function boot() {
