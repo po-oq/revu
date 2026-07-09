@@ -41,7 +41,7 @@ Note: if the host machine opens the app via its own LAN IP (for example `http://
 
 ## Edit History
 
-Editing a thread saves the previous title and body. Threads that have been edited show a 履歴 button in the thread header; anyone can open it to browse versions and a unified diff of each edit. Oversized diffs fall back to full-text display.
+Editing a thread saves the previous title and body. Threads that have been edited show a 履歴 button in the thread header; anyone can open it to browse versions and a diff of each edit. A toggle next to the back button switches between unified and split (side-by-side) views, and the choice is remembered across visits. Oversized diffs fall back to full-text display.
 
 Note: history starts with the first edit made after this feature was introduced. Earlier edits were not recorded and cannot be recovered.
 

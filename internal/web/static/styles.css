@@ -710,6 +710,12 @@ button:active { background: var(--surface-soft); }
 }
 .attachment-preview a { color: var(--accent-deep); font-weight: 600; }
 
+.history-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .history-shell {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
@@ -836,6 +842,24 @@ a.version-badge:hover {
   font-size: 12px;
   padding: 6px 0;
 }
+.diff-split-row {
+  display: flex;
+}
+.diff-split-cell {
+  display: flex;
+  gap: 8px;
+  width: 50%;
+  min-width: 0;
+  padding: 1px 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.diff-split-cell + .diff-split-cell {
+  border-left: 1px solid var(--line);
+}
+.diff-split-cell[data-op="add"] { background: #e6faf5; color: #0c7a63; }
+.diff-split-cell[data-op="del"] { background: var(--danger-soft); color: var(--danger); }
+.diff-split-cell[data-op="empty"] { background: var(--surface-soft); }
 @media (max-width: 860px) {
   .history-shell { grid-template-columns: 1fr; }
   .history-list {

@@ -1,5 +1,6 @@
 const AUTHOR_KEY = "revu.mock.author.v1";
 const DEVICE_KEY = "revu.device.v1";
+const HISTORY_VIEW_KEY = "revu.historyDiffView.v1";
 const API_BASE = "/api";
 const app = document.querySelector("#app");
 const blobStore = new Map();
@@ -857,6 +858,17 @@ async function saveThreadEdit() {
   }
 }
 
+function loadHistoryViewMode() {
+  return localStorage.getItem(HISTORY_VIEW_KEY) === "split" ? "split" : "unified";
+}
+
+function setHistoryViewMode(mode) {
+  if (!state.history || (mode !== "unified" && mode !== "split")) return;
+  state.history.viewMode = mode;
+  localStorage.setItem(HISTORY_VIEW_KEY, mode);
+  renderApp();
+}
+
 async function goHistory(threadId, initialSeq = null) {
   state.view = "history";
   state.selectedThreadId = threadId;
@@ -868,7 +880,8 @@ async function goHistory(threadId, initialSeq = null) {
     loading: true,
     diffLoading: false,
     error: null,
-    fallbackSide: "new"
+    fallbackSide: "new",
+    viewMode: loadHistoryViewMode()
   };
   renderApp();
   try {
@@ -1415,7 +1428,13 @@ function renderHistoryView() {
         <h1>編集履歴: ${escapeHtml(title)}</h1>
         <div class="muted">世代を選ぶと、その編集で変わった内容を差分表示します。</div>
       </div>
-      <button data-action="open-thread" data-thread-id="${escapeHtml(history.threadId)}">← スレへ戻る</button>
+      <div class="history-head-actions">
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" aria-selected="${history.viewMode !== "split"}" data-action="history-view-mode" data-mode="unified">unified</button>
+          <button class="tab" role="tab" aria-selected="${history.viewMode === "split"}" data-action="history-view-mode" data-mode="split">split</button>
+        </div>
+        <button data-action="open-thread" data-thread-id="${escapeHtml(history.threadId)}">← スレへ戻る</button>
+      </div>
     </section>
     <section class="panel history-shell">
       <div class="history-list">
@@ -1470,10 +1489,11 @@ function renderHistoryDiff(history) {
   if (!diff.hunks?.length) {
     return `${titleLine}<div class="empty">本文の変更はありません。</div>`;
   }
-  return `${titleLine}${renderHistoryHunks(diff.hunks)}`;
+  const renderHunk = history.viewMode === "split" ? renderDiffHunkSplit : renderDiffHunk;
+  return `${titleLine}${renderHistoryHunks(diff.hunks, renderHunk)}`;
 }
 
-function renderHistoryHunks(hunks) {
+function renderHistoryHunks(hunks, renderHunk = renderDiffHunk) {
   const parts = [];
   let prevOldEnd = null;
   for (const hunk of hunks) {
@@ -1482,7 +1502,7 @@ function renderHistoryHunks(hunks) {
     } else {
       parts.push(`<div class="diff-separator">… ${hunk.oldStart - prevOldEnd}行省略</div>`);
     }
-    parts.push(renderDiffHunk(hunk));
+    parts.push(renderHunk(hunk));
     prevOldEnd = hunk.oldStart + hunk.lines.filter((line) => line.op !== "add").length;
   }
   return parts.join("");
@@ -1496,6 +1516,50 @@ function renderDiffHunk(hunk) {
     const oldLabel = line.op === "add" ? "" : String(oldNo++);
     const newLabel = line.op === "del" ? "" : String(newNo++);
     return `<div class="diff-line" data-op="${escapeHtml(line.op)}"><span class="diff-line-num">${oldLabel}</span><span class="diff-line-num">${newLabel}</span><span class="diff-line-sign">${sign}</span><span class="diff-line-text">${escapeHtml(line.text) || " "}</span></div>`;
+  }).join("");
+  return `<div class="diff-hunk">${rows}</div>`;
+}
+
+// hunk の行を split 表示用の行ペア(left=旧版, right=新版)に変換する。
+// ctx は左右同一行、ctx に挟まれた del/add の連続ブロックは del 群と add 群を
+// i 番目同士で横に並べ、余った側は null(空セル)にする(GitHub と同じ)。
+function buildSplitRows(lines) {
+  const rows = [];
+  let i = 0;
+  while (i < lines.length) {
+    if (lines[i].op === "ctx") {
+      rows.push({ left: lines[i], right: lines[i] });
+      i++;
+      continue;
+    }
+    const dels = [];
+    const adds = [];
+    while (i < lines.length && lines[i].op !== "ctx") {
+      if (lines[i].op === "del") dels.push(lines[i]);
+      else adds.push(lines[i]);
+      i++;
+    }
+    const count = Math.max(dels.length, adds.length);
+    for (let j = 0; j < count; j++) {
+      rows.push({ left: dels[j] || null, right: adds[j] || null });
+    }
+  }
+  return rows;
+}
+
+function renderDiffHunkSplit(hunk) {
+  let oldNo = hunk.oldStart;
+  let newNo = hunk.newStart;
+  const rows = buildSplitRows(hunk.lines).map((row) => {
+    const left = row.left
+      ? `<span class="diff-line-num">${oldNo++}</span><span class="diff-line-text">${escapeHtml(row.left.text) || " "}</span>`
+      : `<span class="diff-line-num"></span><span class="diff-line-text"></span>`;
+    const right = row.right
+      ? `<span class="diff-line-num">${newNo++}</span><span class="diff-line-text">${escapeHtml(row.right.text) || " "}</span>`
+      : `<span class="diff-line-num"></span><span class="diff-line-text"></span>`;
+    const leftOp = row.left ? row.left.op : "empty";
+    const rightOp = row.right ? row.right.op : "empty";
+    return `<div class="diff-split-row"><span class="diff-split-cell" data-op="${escapeHtml(leftOp)}">${left}</span><span class="diff-split-cell" data-op="${escapeHtml(rightOp)}">${right}</span></div>`;
   }).join("");
   return `<div class="diff-hunk">${rows}</div>`;
 }
@@ -1551,6 +1615,7 @@ app.addEventListener("click", (event) => {
   if (action === "open-history") goHistory(state.selectedThreadId);
   if (action === "select-history-version") selectHistoryVersion(Number(target.dataset.seq));
   if (action === "retry-history") goHistory(state.history?.threadId || state.selectedThreadId);
+  if (action === "history-view-mode") setHistoryViewMode(target.dataset.mode);
   if (action === "history-fallback-side" && state.history) {
     state.history.fallbackSide = target.dataset.side;
     renderApp();
