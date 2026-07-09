@@ -1539,7 +1539,7 @@ function renderDiffHunkSplit(hunk) {
       : `<span class="diff-line-num"></span><span class="diff-line-text"></span>`;
     const leftOp = row.left ? row.left.op : "empty";
     const rightOp = row.right ? row.right.op : "empty";
-    return `<div class="diff-split-row"><span class="diff-split-cell" data-op="${leftOp}">${left}</span><span class="diff-split-cell" data-op="${rightOp}">${right}</span></div>`;
+    return `<div class="diff-split-row"><span class="diff-split-cell" data-op="${escapeHtml(leftOp)}">${left}</span><span class="diff-split-cell" data-op="${escapeHtml(rightOp)}">${right}</span></div>`;
   }).join("");
   return `<div class="diff-hunk">${rows}</div>`;
 }
