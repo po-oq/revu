@@ -1,5 +1,6 @@
 const AUTHOR_KEY = "revu.mock.author.v1";
 const DEVICE_KEY = "revu.device.v1";
+const HISTORY_VIEW_KEY = "revu.historyDiffView.v1";
 const API_BASE = "/api";
 const app = document.querySelector("#app");
 const blobStore = new Map();
@@ -857,6 +858,17 @@ async function saveThreadEdit() {
   }
 }
 
+function loadHistoryViewMode() {
+  return localStorage.getItem(HISTORY_VIEW_KEY) === "split" ? "split" : "unified";
+}
+
+function setHistoryViewMode(mode) {
+  if (!state.history || (mode !== "unified" && mode !== "split")) return;
+  state.history.viewMode = mode;
+  localStorage.setItem(HISTORY_VIEW_KEY, mode);
+  renderApp();
+}
+
 async function goHistory(threadId, initialSeq = null) {
   state.view = "history";
   state.selectedThreadId = threadId;
@@ -868,7 +880,8 @@ async function goHistory(threadId, initialSeq = null) {
     loading: true,
     diffLoading: false,
     error: null,
-    fallbackSide: "new"
+    fallbackSide: "new",
+    viewMode: loadHistoryViewMode()
   };
   renderApp();
   try {
@@ -1415,7 +1428,13 @@ function renderHistoryView() {
         <h1>編集履歴: ${escapeHtml(title)}</h1>
         <div class="muted">世代を選ぶと、その編集で変わった内容を差分表示します。</div>
       </div>
-      <button data-action="open-thread" data-thread-id="${escapeHtml(history.threadId)}">← スレへ戻る</button>
+      <div class="history-head-actions">
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" aria-selected="${history.viewMode !== "split"}" data-action="history-view-mode" data-mode="unified">unified</button>
+          <button class="tab" role="tab" aria-selected="${history.viewMode === "split"}" data-action="history-view-mode" data-mode="split">split</button>
+        </div>
+        <button data-action="open-thread" data-thread-id="${escapeHtml(history.threadId)}">← スレへ戻る</button>
+      </div>
     </section>
     <section class="panel history-shell">
       <div class="history-list">
@@ -1470,7 +1489,8 @@ function renderHistoryDiff(history) {
   if (!diff.hunks?.length) {
     return `${titleLine}<div class="empty">本文の変更はありません。</div>`;
   }
-  return `${titleLine}${renderHistoryHunks(diff.hunks)}`;
+  const renderHunk = history.viewMode === "split" ? renderDiffHunkSplit : renderDiffHunk;
+  return `${titleLine}${renderHistoryHunks(diff.hunks, renderHunk)}`;
 }
 
 function renderHistoryHunks(hunks, renderHunk = renderDiffHunk) {
@@ -1595,6 +1615,7 @@ app.addEventListener("click", (event) => {
   if (action === "open-history") goHistory(state.selectedThreadId);
   if (action === "select-history-version") selectHistoryVersion(Number(target.dataset.seq));
   if (action === "retry-history") goHistory(state.history?.threadId || state.selectedThreadId);
+  if (action === "history-view-mode") setHistoryViewMode(target.dataset.mode);
   if (action === "history-fallback-side" && state.history) {
     state.history.fallbackSide = target.dataset.side;
     renderApp();

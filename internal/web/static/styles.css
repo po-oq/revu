@@ -710,6 +710,12 @@ button:active { background: var(--surface-soft); }
 }
 .attachment-preview a { color: var(--accent-deep); font-weight: 600; }
 
+.history-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .history-shell {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
