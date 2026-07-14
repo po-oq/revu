@@ -997,6 +997,14 @@ function renderHomeView() {
   `;
 }
 
+function renderDropZone(view, type) {
+  return `
+          <label class="drop-zone" data-drop="${escapeHtml(view)}">
+            <input type="file" data-action="choose-${escapeHtml(view)}-file" style="display:none">
+            <span>${escapeHtml(type)} ファイルをここにドロップ<br>またはクリックして選択</span>
+          </label>`;
+}
+
 function renderCreateView() {
   const draft = ensureDraft();
   const type = state.createType;
@@ -1023,10 +1031,7 @@ function renderCreateView() {
               </button>
             `).join("")}
           </div>
-          <label class="drop-zone" data-drop="create">
-            <input type="file" data-action="choose-create-file" style="display:none">
-            <span>${escapeHtml(type)} ファイルをここにドロップ<br>またはクリックして選択</span>
-          </label>
+          ${renderDropZone("create", type)}
           ${draft.fileMeta ? `<div class="muted">読込済み: ${escapeHtml(draft.fileMeta.name)} (${formatBytes(draft.fileMeta.size)})</div>` : ""}
           ${draft.fileAttachment ? `<div class="muted">添付: ${escapeHtml(draft.fileAttachment.name)} (${formatBytes(draft.fileAttachment.size)})</div>` : ""}
           ${bodyEnabled ? `
