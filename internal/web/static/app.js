@@ -470,6 +470,24 @@ async function handleCreateFiles(files) {
   }
 }
 
+async function handleEditFiles(files) {
+  clearErrors();
+  const file = Array.from(files)[0];
+  if (!file) return;
+  const draft = state.drafts.edit;
+  if (!draft) return;
+
+  try {
+    const text = await readTextFile(file);
+    draft.body = text;
+    draft.fileMeta = fileToMeta(file);
+    renderApp();
+  } catch (error) {
+    pushError("ファイルを読み込めませんでした。");
+    renderApp();
+  }
+}
+
 async function addCommentAttachments(files) {
   clearErrors();
   const draft = ensureCommentDraft();
@@ -813,7 +831,8 @@ function startEditThread() {
   state.drafts.edit = {
     threadId: thread.id,
     title: thread.title,
-    body: thread.body
+    body: thread.body,
+    fileMeta: null
   };
   clearErrors();
   renderApp();
@@ -997,6 +1016,14 @@ function renderHomeView() {
   `;
 }
 
+function renderDropZone(view, type) {
+  return `
+          <label class="drop-zone" data-drop="${escapeHtml(view)}">
+            <input type="file" data-action="choose-${escapeHtml(view)}-file" style="display:none">
+            <span>${escapeHtml(type)} ファイルをここにドロップ<br>またはクリックして選択</span>
+          </label>`;
+}
+
 function renderCreateView() {
   const draft = ensureDraft();
   const type = state.createType;
@@ -1023,10 +1050,7 @@ function renderCreateView() {
               </button>
             `).join("")}
           </div>
-          <label class="drop-zone" data-drop="create">
-            <input type="file" data-action="choose-create-file" style="display:none">
-            <span>${escapeHtml(type)} ファイルをここにドロップ<br>またはクリックして選択</span>
-          </label>
+          ${renderDropZone("create", type)}
           ${draft.fileMeta ? `<div class="muted">読込済み: ${escapeHtml(draft.fileMeta.name)} (${formatBytes(draft.fileMeta.size)})</div>` : ""}
           ${draft.fileAttachment ? `<div class="muted">添付: ${escapeHtml(draft.fileAttachment.name)} (${formatBytes(draft.fileAttachment.size)})</div>` : ""}
           ${bodyEnabled ? `
@@ -1085,6 +1109,8 @@ function renderEditView() {
             <input class="input" data-edit-title value="${escapeHtml(draft.title)}" placeholder="スレタイ">
           </div>
           ${bodyEnabled ? `
+            ${renderDropZone("edit", thread.type)}
+            ${draft.fileMeta ? `<div class="muted">読込済み: ${escapeHtml(draft.fileMeta.name)} (${formatBytes(draft.fileMeta.size)})</div>` : ""}
             <div class="field">
               <label>本文</label>
               <textarea class="textarea" data-edit-body>${escapeHtml(draft.body)}</textarea>
@@ -1654,9 +1680,12 @@ app.addEventListener("submit", (event) => {
 });
 
 app.addEventListener("change", (event) => {
-  if (state.view !== "create") return;
-  if (event.target.dataset.action === "choose-create-file") {
+  const action = event.target.dataset.action;
+  if (action === "choose-create-file" && state.view === "create") {
     handleCreateFiles(event.target.files);
+  }
+  if (action === "choose-edit-file" && state.view === "edit") {
+    handleEditFiles(event.target.files);
   }
 });
 
@@ -1699,6 +1728,9 @@ app.addEventListener("drop", (event) => {
   zone.classList.remove("dragover");
   if (zone.dataset.drop === "create") {
     handleCreateFiles(event.dataTransfer.files);
+  }
+  if (zone.dataset.drop === "edit") {
+    handleEditFiles(event.dataTransfer.files);
   }
 });
 

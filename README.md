@@ -43,6 +43,8 @@ Note: if the host machine opens the app via its own LAN IP (for example `http://
 
 Editing a thread saves the previous title and body. Threads that have been edited show a 履歴 button in the thread header; anyone can open it to browse versions and a diff of each edit. A toggle next to the back button switches between unified and split (side-by-side) views, and the choice is remembered across visits. Oversized diffs fall back to full-text display.
 
+When editing a markdown, HTML, or text thread, the edit form offers the same file drop zone as the new-thread form: drop or choose a file and its contents replace the body textarea, mirroring how the thread was likely created. The type toggle is hidden while editing because the thread type is fixed. File threads remain title-only on edit.
+
 Note: history starts with the first edit made after this feature was introduced. Earlier edits were not recorded and cannot be recovered.
 
 The thread header shows the current version (for example `v3`), and each comment shows the version it was posted against. On threads that have been edited, these badges are links that open the edit history at that version in a new tab. Comments posted before this feature was introduced have no recorded version and show no badge.
