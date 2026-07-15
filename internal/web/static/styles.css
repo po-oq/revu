@@ -410,6 +410,8 @@ button:active { background: var(--surface-soft); }
   line-height: 1.6;
 }
 .markdown-body code { font-family: var(--font-mono); }
+.markdown-body .table-scroll { overflow-x: auto; margin: 1.2em 0; }
+.markdown-body .table-scroll > table { margin: 0; }
 .markdown-body table {
   border-collapse: collapse;
   width: 100%;

@@ -1143,6 +1143,20 @@ function refreshEditPreview() {
 
 let mermaidRenderSequence = 0;
 
+// サニタイズ済みHTML内のtableを横スクロール枠で包む。
+// 列が多い表がpanelのoverflow:clipに切り落とされるのを防ぐ。
+function wrapTables(html) {
+  const holder = document.createElement("div");
+  holder.innerHTML = html;
+  holder.querySelectorAll("table").forEach((table) => {
+    const scroller = document.createElement("div");
+    scroller.className = "table-scroll";
+    table.parentNode.insertBefore(scroller, table);
+    scroller.appendChild(table);
+  });
+  return holder.innerHTML;
+}
+
 function renderMarkdown(source) {
   if (!window.marked || !window.DOMPurify) {
     return `<div class="error">Markdownライブラリを読み込めませんでした。</div>`;
@@ -1152,7 +1166,7 @@ function renderMarkdown(source) {
     const index = mermaidBlocks.push(code.trim()) - 1;
     return `<div data-mermaid-index="${index}"></div>`;
   });
-  const html = DOMPurify.sanitize(marked.parse(replaced));
+  const html = wrapTables(DOMPurify.sanitize(marked.parse(replaced)));
   return `<div class="content-view markdown-body" data-rendered-markdown>${html}</div>`;
 }
 
