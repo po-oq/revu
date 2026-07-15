@@ -1145,6 +1145,9 @@ let mermaidRenderSequence = 0;
 
 // サニタイズ済みHTML内のtableを横スクロール枠で包む。
 // 列が多い表がpanelのoverflow:clipに切り落とされるのを防ぐ。
+// 必ずDOMPurify.sanitizeの後に呼ぶこと。ここでの再パースは通常のdiv内に閉じており
+// (svg/mathml等へ文脈が変わらない)、sanitize結果をinnerHTMLで挿入するのと同じ経路なので
+// mXSSの新たな余地は生まない。
 function wrapTables(html) {
   const holder = document.createElement("div");
   holder.innerHTML = html;
