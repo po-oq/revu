@@ -133,6 +133,7 @@ button:active { background: var(--surface-soft); }
 .avatar-dot[data-author-color="sumire"] { background: #6f51a1; }
 
 .workspace { width: min(1480px, 100%); margin: 0 auto; padding: 24px 20px 48px; flex: 1; }
+.workspace.workspace-wide { width: 100%; }
 .panel {
   background: var(--surface);
   border: 1px solid var(--line);

@@ -956,7 +956,7 @@ function renderApp() {
         <button class="author-button" data-action="edit-author" title="投稿者名を変更"><span class="avatar-dot" data-author-color="${authorColorKey(state.currentAuthor)}"></span>${escapeHtml(state.currentAuthor)}</button>
       </div>
     </header>
-    <main class="workspace">
+    <main class="workspace ${state.view === "thread" && state.commentsCollapsed ? "workspace-wide" : ""}">
       ${state.errors.map((error) => `<div class="error">${escapeHtml(error)}</div>`).join("")}
       ${renderCurrentView()}
     </main>
