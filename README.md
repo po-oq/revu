@@ -33,6 +33,10 @@ Back up or move a review workspace by copying the `data/` folder.
 - Refresh is manual or navigation-driven; no automatic polling yet.
 - There is no account login or LAN-outside access.
 
+## Wide Content
+
+Markdown tables wider than the reading column scroll horizontally instead of being cut off. Collapsing the comment pane on a thread also expands the view to the full browser width, which helps with tables that have many columns.
+
 ## Host Delete Authority
 
 The device that runs the server is the host. Requests from loopback (`127.0.0.1` / `::1`) are treated as host requests, and the host can delete any thread or comment. Editing stays owner-only; the host has no edit rights.
