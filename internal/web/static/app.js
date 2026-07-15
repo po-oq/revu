@@ -956,7 +956,7 @@ function renderApp() {
         <button class="author-button" data-action="edit-author" title="投稿者名を変更"><span class="avatar-dot" data-author-color="${authorColorKey(state.currentAuthor)}"></span>${escapeHtml(state.currentAuthor)}</button>
       </div>
     </header>
-    <main class="workspace">
+    <main class="workspace ${state.view === "thread" && state.commentsCollapsed ? "workspace-wide" : ""}">
       ${state.errors.map((error) => `<div class="error">${escapeHtml(error)}</div>`).join("")}
       ${renderCurrentView()}
     </main>
@@ -1143,6 +1143,23 @@ function refreshEditPreview() {
 
 let mermaidRenderSequence = 0;
 
+// サニタイズ済みHTML内のtableを横スクロール枠で包む。
+// 列が多い表がpanelのoverflow:clipに切り落とされるのを防ぐ。
+// 必ずDOMPurify.sanitizeの後に呼ぶこと。ここでの再パースは通常のdiv内に閉じており
+// (svg/mathml等へ文脈が変わらない)、sanitize結果をinnerHTMLで挿入するのと同じ経路なので
+// mXSSの新たな余地は生まない。
+function wrapTables(html) {
+  const holder = document.createElement("div");
+  holder.innerHTML = html;
+  holder.querySelectorAll("table").forEach((table) => {
+    const scroller = document.createElement("div");
+    scroller.className = "table-scroll";
+    table.parentNode.insertBefore(scroller, table);
+    scroller.appendChild(table);
+  });
+  return holder.innerHTML;
+}
+
 function renderMarkdown(source) {
   if (!window.marked || !window.DOMPurify) {
     return `<div class="error">Markdownライブラリを読み込めませんでした。</div>`;
@@ -1152,7 +1169,7 @@ function renderMarkdown(source) {
     const index = mermaidBlocks.push(code.trim()) - 1;
     return `<div data-mermaid-index="${index}"></div>`;
   });
-  const html = DOMPurify.sanitize(marked.parse(replaced));
+  const html = wrapTables(DOMPurify.sanitize(marked.parse(replaced)));
   return `<div class="content-view markdown-body" data-rendered-markdown>${html}</div>`;
 }
 
